@@ -1,5 +1,5 @@
 {
-  "app": "bazargard",
+  "app": "bazargard-wizard",
   "platform": "docker",
   "port": 8000,
   "healthCheck": {
