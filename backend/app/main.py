@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import agent, catalog, config, contact, db, llm, shops, stroll, visit
+from . import agent, catalog, config, contact, db, gazetteer, llm, shops, stroll, visit
 from . import travel
 from .agent import fmt_shops, toman
 from .models import Ctx
@@ -75,6 +75,11 @@ def meta():
             "counts": json.loads(m.get("csv_counts", "{}")), "llm": llm.describe(),
             "now": now_tehran().isoformat()}
 
+
+@app.get("/api/places")
+def places(q: str = ""):
+    """Free-text start point: preset squares, metro stations, shopping centres and neighbourhoods."""
+    return {"items": gazetteer.search(q[:60])}
 
 # ---------------------------------------------------------------------------------------
 # Agent chat

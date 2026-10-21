@@ -118,3 +118,14 @@ def test_nav_links_open_the_route_from_the_user():
     assert "origin=51.4197,35.6998&destination=51.4339,35.8046" in links["balad"]  # Balad wants lon,lat
     assert "maps/dir/?api=1&origin=35.6998,51.4197" in links["google"] and links["google"].endswith("travelmode=transit")
     assert "search" in nav_links(35.8, 51.4, "x")["google"]  # no origin: just the place
+
+
+@needs_db
+def test_free_text_places_find_malls_metro_and_areas():
+    from app import gazetteer
+    assert gazetteer.search("علاءالدین")[0]["label"].startswith("پاساژ علا")  # dataset spells it without ء
+    hit = gazetteer.search("مترو طالقانی")[0]
+    assert hit["kind"] == "metro" and "طالقانی" in hit["label"]  # «مترو آیت‌الله طالقانی»
+    assert any(h["kind"] == "area" for h in gazetteer.search("شیخ هادی"))
+    assert gazetteer.search("فردوسی")[0]["kind"] == "place"
+    assert gazetteer.search("x") == [] and gazetteer.search("نیویورک") == []

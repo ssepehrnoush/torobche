@@ -64,4 +64,9 @@ export const api = {
   visit: (pid: number | null, sids: number[], ctx: Ctx, confirmed: Record<number, unknown> | null) =>
     post<import("./types").VisitPlan>("/api/visit", { pid, sids, ctx, confirmed }),
   stroll: (pid: number, sid: number, ctx: Ctx) => post<import("./types").Stroll>("/api/stroll", { pid, sid, ctx }),
+  places: async (q: string, signal?: AbortSignal) => {
+    const r = await fetch(`/api/places?q=${encodeURIComponent(q)}`, { signal });
+    if (!r.ok) throw new Error(`/api/places ${r.status}`);
+    return (await r.json()) as { items: import("./types").PlaceHit[] };
+  },
 };

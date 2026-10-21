@@ -247,6 +247,9 @@ export type VisitPlan = {
 
 export type Place = { id: string; label: string; lat: number; lon: number };
 
+/** A typed start point: preset square, metro station, shopping centre or neighbourhood (/api/places). */
+export type PlaceHit = Place & { kind: "place" | "metro" | "mall" | "area"; sub: string };
+
 export type Meta = {
   places: Place[];
   visit_presets: Record<string, string>;
