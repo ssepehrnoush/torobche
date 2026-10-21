@@ -54,8 +54,8 @@ export function ShopsStep({ pid, ctx, setCtx, picks, onBack, onAsk, onGo, onOpen
   const inTop = (i: ShopOffer, idx: number) => idx < FIRST || chosen.includes(i.sid);
   const top = [...(bargain ? far.filter((i) => i.sid === bargain.sid) : []), ...near.filter(inTop)];
   const rest = [...near.filter((i, idx) => !inTop(i, idx)), ...far.filter((i) => i.sid !== bargain?.sid)];
-  const cheapest = near.filter((i) => i.price && !i.price_warning && i.authenticity?.status !== "declared_copy")
-    .reduce<ShopOffer | null>((a, b) => (!a || b.price! < a.price! ? b : a), null)?.sid;
+  const priced = near.filter((i) => i.price && !i.price_warning && i.authenticity?.status !== "declared_copy");
+  const cheapest = priced.length > 1 ? priced.reduce((a, b) => (b.price! < a.price! ? b : a)).sid : null; // «ارزان‌ترین» needs a second shop
   const toggle = (sid: number) => setSel((s) => (s.includes(sid) ? s.filter((x) => x !== sid) : s.length >= MAX_SEL ? s : [...s, sid]));
   const p = data?.product;
   const range = data?.range?.label ?? "نزدیک شما";
