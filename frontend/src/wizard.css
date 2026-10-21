@@ -1,0 +1,89 @@
+/* Setup-wizard layout on top of styles.css: one question per screen, big answers, a fixed «قبلی / ادامه» bar.
+   Same tokens as the chat UI; every class here starts with wz- except the radio dot and the extra-small image. */
+
+.wz-progress { display: flex; align-items: center; gap: 10px; padding: 0 16px 10px; }
+.wz-segs { flex: 1; display: flex; gap: 4px; }
+.wz-segs i { flex: 1; height: 4px; border-radius: 2px; background: var(--line); transition: background .3s var(--ease); }
+.wz-segs i.on { background: var(--brand); }
+.wz-progress span { font-size: 11.5px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.wz-restart { height: 36px; padding: 0 8px; }
+
+main.wz-main { padding: 20px 16px calc(150px + env(safe-area-inset-bottom)); gap: 14px; }
+/* slide each new screen in; not on <main> itself, or its transform would pin the fixed bottom bar to it */
+main.wz-main > :not(.wz-foot) { animation: wzin .26s var(--ease) both; }
+@keyframes wzin { from { opacity: 0; transform: translateX(-10px); } }
+
+.wz-head { display: flex; flex-direction: column; gap: 4px; padding: 0 2px; }
+.wz-head h1 { font-size: 22px; font-weight: 900; line-height: 1.5; text-wrap: balance; display: flex; align-items: center; gap: 6px; }
+.wz-head p { font-size: 13.5px; color: var(--muted); line-height: 1.9; }
+.wz-art { width: 100%; max-height: 180px; object-fit: contain; margin: -8px auto -4px; }
+.wz-sub { font-size: 14px; font-weight: 800; padding: 4px 2px 0; }
+
+/* the one text field */
+.wz-field { display: flex; gap: 4px; align-items: center; border-radius: 16px; background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--chip-line); padding: 6px 14px 6px 6px; transition: box-shadow .15s; }
+.wz-field:focus-within { box-shadow: inset 0 0 0 2px var(--blue-2); }
+.wz-field input { flex: 1; min-width: 0; height: 44px; border: 0; background: transparent; outline: none; font-size: 16px; }
+.wz-field input::placeholder { color: var(--faint); }
+.wz-field.sm { border-radius: 24px; }
+
+.wz-examples { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-top: 2px; }
+.wz-examples .meta { padding: 0 2px; }
+.wz-ex { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 14px; border-radius: 12px; background: var(--surface); font-size: 13.5px; font-weight: 600; color: var(--ink-2); text-align: right; }
+.wz-ex svg { color: var(--brand); flex: none; }
+.wz-ex:active { background: var(--line); }
+
+/* big answers */
+.wz-opts { display: flex; flex-direction: column; gap: 8px; }
+.wz-opt, .wz-prod, .wz-shop, .wz-iq, .wz-stop {
+  background: var(--surface); border-radius: 14px; box-shadow: inset 0 0 0 1.5px transparent; transition: box-shadow .15s, background .15s;
+}
+.wz-opt, .wz-prod { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 12px 14px; text-align: right; }
+.wz-prod { align-items: flex-start; }
+.wz-prod > .radio { margin-top: 2px; }
+.wz-opt.on, .wz-prod.on, .wz-shop.on { box-shadow: inset 0 0 0 2px var(--blue-2); background: #f8fbff; }
+.wz-opt:active, .wz-prod:active { background: var(--fog); }
+.wz-opt-ico { width: 36px; height: 36px; border-radius: 12px; background: var(--hair); color: var(--muted); display: grid; place-items: center; flex: none; transition: background .15s, color .15s; }
+.wz-opt.on .wz-opt-ico { background: var(--blue-soft); color: var(--blue); }
+.wz-opt-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; text-align: right; }
+.wz-opt-t { font-size: 14.5px; font-weight: 700; line-height: 1.75; color: var(--ink); }
+.wz-price { color: var(--ink); font-weight: 800; font-size: 13px; }
+.wz-mins { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.wz-mins .chip { padding: 0; justify-content: center; background: var(--surface); }
+.wz-mins .chip.on { background: var(--blue-soft); }
+.wz-opts .name { font-weight: 800; font-size: 15px; line-height: 1.7; min-width: 0; }
+.radio { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--chip-line); display: grid; place-items: center; flex: none; transition: box-shadow .15s; }
+.radio.on { box-shadow: inset 0 0 0 2px var(--blue-2); }
+.radio i { width: 11px; height: 11px; border-radius: 50%; background: var(--blue-2); }
+
+.wz-more { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 14px; border-radius: 14px; background: var(--surface); color: var(--blue); font-weight: 700; font-size: 13.5px; text-align: right; }
+.wz-say { background: var(--surface); border-radius: 14px; padding: 14px 16px; font-size: 14.5px; line-height: 1.95; white-space: pre-wrap; }
+
+.wz-wait { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 64px 16px 32px; text-align: center; }
+.wz-wait b { font-size: 18px; font-weight: 900; }
+.wz-spin { width: 44px; height: 44px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--ai); animation: spin .8s linear infinite; margin-bottom: 10px; }
+
+/* shops */
+.wz-prodline { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; border-radius: 12px; background: var(--surface); font-size: 13px; font-weight: 700; text-align: right; }
+.pimg.xs { width: 36px; height: 36px; border-radius: 8px; }
+.wz-shop { display: flex; align-items: stretch; overflow: hidden; }
+.wz-shop-main { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; text-align: right; }
+.wz-shop-main > .selbox { margin-top: 4px; }
+.wz-shop-main .r3 { margin-top: 2px; }
+.wz-info { width: 44px; flex: none; display: grid; place-items: center; color: var(--faint); border-right: 1px solid var(--hair); }
+.wz-info:active { background: var(--fog); }
+
+/* inquiry and plan */
+.wz-iq { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }
+.wz-iq-main { display: flex; align-items: center; gap: 8px; width: 100%; text-align: right; }
+.wz-stop { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.wz-warn { display: block; }
+
+/* fixed bottom bar */
+.wz-foot {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: min(480px, 100vw); z-index: 26;
+  background: var(--surface); box-shadow: 0 -1px 0 var(--line); padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+}
+.wz-btns { display: flex; gap: 8px; align-items: center; }
+.wz-btns .btn { height: 48px; }
+.wz-back { flex: none; padding: 0 14px 0 16px; }
+.wz-skip { display: flex; width: 100%; height: 30px; margin: -2px 0 8px; }
