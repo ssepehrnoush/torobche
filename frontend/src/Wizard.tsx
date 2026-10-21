@@ -68,6 +68,8 @@ export default function Wizard() {
   const [sheet, setSheet] = useState<SheetState>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
+  const [placed, setPlaced] = useState(false); // no shopping place is assumed: the person picks one every time
+  const lastPick = useRef<"here" | "there" | null>(null);
   const session = useRef<string | null>(null);
   const ctxRef = useRef<Ctx>(ctx);
   const searched = useRef<string | null>(null); // need + preferences of the last search, to skip re-asking on «قبلی/ادامه»
@@ -93,6 +95,16 @@ export default function Wizard() {
     setToastMsg(s);
     window.setTimeout(() => setToastMsg(null), 2800);
   }, []);
+
+  // Near me usually means a drive or a ride; a place picked on the map usually means walking around there.
+  // The travel default changes only when the kind of pick changes, so a choice made in the next step survives.
+  const pickPlace = (p: { lat: number; lon: number; label: string }, how: "here" | "there") => {
+    const c = { ...ctxRef.current, lat: p.lat, lon: p.lon, place: p.label };
+    if (lastPick.current !== how) Object.assign(c, how === "here" ? { travel_mode: "car", range_mode: "time", range_minutes: 20 } : { travel_mode: "walk", range_mode: "time", range_minutes: 20 });
+    lastPick.current = how;
+    setPlaced(true);
+    setCtx(c);
+  };
 
   const go = (s: Step) => {
     setStep(s);
@@ -206,6 +218,8 @@ export default function Wizard() {
     session.current = null;
     searched.current = null;
     lastNeed.current = null;
+    lastPick.current = null;
+    setPlaced(false);
     setCtx({ ...ctxRef.current, ...NO_FILTERS });
     setNeed("");
     setTurn(null);
@@ -260,7 +274,7 @@ export default function Wizard() {
             lastNeed.current = text;
             go("where");
           }} />}
-        {step === "where" && <WhereStep ctx={ctx} setCtx={setCtx} meta={meta} toast={toast} onBack={goBack} onNext={() => go("how")} />}
+        {step === "where" && <WhereStep ctx={ctx} placed={placed} pickPlace={pickPlace} toast={toast} onBack={goBack} onNext={() => go("how")} />}
         {step === "how" && <HowStep ctx={ctx} setCtx={setCtx} onFilters={() => setSheet({ kind: "filters" })} onBack={goBack} onNext={search} />}
         {step === "pick" && (
           <PickStep turn={turn} busy={busy} onBack={goBack} onSend={(t) => send(t)} onPick={(p) => openShops(p)}

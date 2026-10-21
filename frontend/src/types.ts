@@ -250,6 +250,12 @@ export type Place = { id: string; label: string; lat: number; lon: number };
 /** A typed start point: preset square, metro station, shopping centre or neighbourhood (/api/places). */
 export type PlaceHit = Place & { kind: "place" | "metro" | "mall" | "area"; sub: string };
 
+/** A neighbourhood bubble on the place map. */
+export type PlaceArea = PlaceHit & { shops: number };
+
+/** A point tapped on the map: named after the nearest landmark, with the shops within a short walk. */
+export type PointInfo = { label: string; near: PlaceHit | null; shops_nearby: number };
+
 export type Meta = {
   places: Place[];
   visit_presets: Record<string, string>;

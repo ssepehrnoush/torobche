@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { fa, HERE, shortPlace } from "../../fmt";
 import { Icon } from "../../icons";
-import type { Ctx, Meta, PlaceHit, TravelMode } from "../../types";
+import type { Ctx, Meta, PlaceArea, PlaceHit, TravelMode } from "../../types";
 import { activeFilters } from "../ContextBar";
 import { Choice, StepHead, WizFoot } from "./Shell";
 
@@ -15,6 +15,7 @@ const EXAMPLES: [string, string][] = [
 const FERDOWSI = { lat: 35.6998, lon: 51.4197 };
 const MODES: [TravelMode, string, string][] = [["walk", "walk", "پیاده"], ["car", "car", "با ماشین یا تاکسی"], ["transit", "train", "با مترو و اتوبوس"]];
 const MINUTES = [10, 20, 30, 45, 60];
+const PlaceMap = lazy(() => import("./PlaceMap").then((m) => ({ default: m.PlaceMap })));
 const HIT_ICON: Record<PlaceHit["kind"], string> = { place: "pin", metro: "train", mall: "store", area: "map" };
 
 export function NeedStep({ need, setNeed, meta, onNext, listen, listening }: {
@@ -52,23 +53,26 @@ export function NeedStep({ need, setNeed, meta, onNext, listen, listening }: {
   );
 }
 
-export function WhereStep({ ctx, setCtx, meta, toast, onBack, onNext }: {
+export function WhereStep({ ctx, placed, pickPlace, toast, onBack, onNext }: {
   ctx: Ctx;
-  setCtx: (c: Ctx) => void;
-  meta: Meta | null;
+  placed: boolean;
+  pickPlace: (p: { lat: number; lon: number; label: string }, how: "here" | "there") => void;
   toast: (s: string) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
-  const [all, setAll] = useState(false);
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<PlaceHit[] | null>(null);
-  const places = meta?.places ?? [];
-  const shown = all ? places : places.filter((p, i) => i < 4 || p.label === ctx.place);
-  // a place picked from the search stays on the list, ticked, so «قبلی» and «ادامه» never lose it
-  const typed = shortPlace(ctx.place) !== HERE && places.length > 0 && !places.some((p) => p.label === ctx.place);
+  const [areas, setAreas] = useState<PlaceArea[]>([]);
+  const [empty, setEmpty] = useState(false); // no shop within a short walk of the tapped point
+  const [locating, setLocating] = useState(false);
+  const taps = useRef(0); // only the latest tap may rename the pin
   const typing = q.trim().length >= 2;
+  const here = placed && shortPlace(ctx.place) === HERE;
 
+  useEffect(() => {
+    api.placeAreas().then((r) => setAreas(r.items)).catch(() => {});
+  }, []);
   useEffect(() => {
     const t = q.trim();
     setHits(null);
@@ -80,59 +84,85 @@ export function WhereStep({ ctx, setCtx, meta, toast, onBack, onNext }: {
       ac.abort();
     };
   }, [q]);
-  const pick = (p: { lat: number; lon: number; label: string }) => {
-    setCtx({ ...ctx, lat: p.lat, lon: p.lon, place: p.label });
+
+  const choose = (p: { lat: number; lon: number; label: string }) => {
+    taps.current++;
+    pickPlace(p, "there");
     setQ("");
+    setEmpty(false);
+  };
+  const tap = (lat: number, lon: number) => {
+    const n = ++taps.current;
+    pickPlace({ lat, lon, label: "نقطهٔ روی نقشه" }, "there");
+    setEmpty(false);
+    api.placeAt(lat, lon).then((r) => {
+      if (n !== taps.current) return;
+      pickPlace({ lat, lon, label: r.label }, "there");
+      setEmpty(r.shops_nearby === 0);
+    }).catch(() => {});
   };
   const locate = () => {
     if (!navigator.geolocation) return toast("مرورگر موقعیت‌یابی را پشتیبانی نمی‌کند");
+    setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (p) => {
+        setLocating(false);
         const { latitude: lat, longitude: lon } = p.coords;
         if (Math.hypot(lat - FERDOWSI.lat, (lon - FERDOWSI.lon) * 0.81) > 0.5) {
-          toast("فعلاً فقط فروشگاه‌های تهران را داریم؛ یکی از محله‌ها را انتخاب کنید");
+          toast("فعلاً فقط فروشگاه‌های تهران را داریم؛ روی نقشه جای خرید را بزنید");
           return;
         }
-        setCtx({ ...ctx, lat, lon, place: HERE });
+        taps.current++;
+        pickPlace({ lat, lon, label: HERE }, "here");
+        setEmpty(false);
       },
-      () => toast("دسترسی به موقعیت داده نشد؛ یکی از محله‌ها را انتخاب کنید"),
+      () => {
+        setLocating(false);
+        toast("دسترسی به موقعیت داده نشد؛ روی نقشه جای خرید را بزنید");
+      },
       { enableHighAccuracy: true, timeout: 8000 }
     );
   };
+
   return (
     <>
-      <StepHead title="از کجا راه می‌افتی؟" sub="نزدیک‌ترین فروشگاه‌ها رو از همین‌جا حساب می‌کنم." />
-      <form className="wz-field" role="search" onSubmit={(e) => { e.preventDefault(); if (hits?.[0]) pick(hits[0]); }}>
+      <StepHead title="کجا می‌خوای خرید کنی؟" sub="روی نقشه یا اسم یه محله بزن، یا بنویس کجا." />
+      <button className={"wz-opt" + (here ? " on" : "")} onClick={locate} disabled={locating} role="radio" aria-checked={here}>
+        <span className="wz-opt-ico"><Icon name="locate" size={20} /></span>
+        <span className="grow wz-opt-txt">
+          <span className="wz-opt-t">{locating ? "دارم پیدات می‌کنم…" : "نزدیک خودم"}</span>
+          <span className="meta">همین‌جا که الان هستی، با موقعیت‌یاب گوشی</span>
+        </span>
+        <span className={"radio" + (here ? " on" : "")}>{here && <i />}</span>
+      </button>
+      <form className="wz-field" role="search" onSubmit={(e) => { e.preventDefault(); if (hits?.[0]) choose(hits[0]); }}>
         <Icon name="search" size={19} className="faint" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} enterKeyHint="search" aria-label="جستجوی محل"
-          placeholder="محله، پاساژ یا ایستگاه مترو" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} enterKeyHint="search" aria-label="جستجوی جای خرید"
+          placeholder="مثلاً تجریش، پاساژ علاءالدین یا مترو ونک" />
         {q && <button type="button" className="micbtn" onClick={() => setQ("")} aria-label="پاک کردن"><Icon name="x" size={18} /></button>}
       </form>
       {typing ? (
         <div className="wz-opts" role="radiogroup" aria-live="polite">
           {hits === null && [0, 1, 2].map((i) => <div key={i} className="shimmer" style={{ height: 56, borderRadius: 14 }} />)}
           {hits?.length === 0 && (
-            <div className="wz-say small">پیداش نکردم. اسم نزدیک‌ترین ایستگاه مترو، پاساژ یا میدون رو بنویس. فعلاً فقط فروشگاه‌های مرکز تهران رو داریم.</div>
+            <div className="wz-say small">پیداش نکردم. اسم یه محله، پاساژ یا ایستگاه مترو رو بنویس، یا روی نقشه بزن. فعلاً فروشگاه‌های تهران رو داریم.</div>
           )}
           {hits?.map((p) => (
-            <Choice key={p.id} on={ctx.place === p.label} onClick={() => pick(p)} icon={HIT_ICON[p.kind]} title={p.label} sub={p.sub} />
+            <Choice key={p.id} on={placed && ctx.place === p.label} onClick={() => choose(p)} icon={HIT_ICON[p.kind]} title={p.label} sub={p.sub} />
           ))}
         </div>
       ) : (
         <>
-          <div className="wz-opts" role="radiogroup">
-            {typed && <Choice on onClick={() => {}} icon="pin" title={ctx.place} sub="انتخاب خودت" />}
-            <Choice on={shortPlace(ctx.place) === HERE} onClick={locate} icon="locate" title="همین‌جا که هستم" sub="با موقعیت‌یاب گوشی" />
-            {shown.map((p) => (
-              <Choice key={p.id} on={ctx.place === p.label} onClick={() => pick(p)} icon="pin" title={p.label} />
-            ))}
-          </div>
-          {!all && places.length > shown.length && (
-            <button className="morebtn" onClick={() => setAll(true)}>{fa(places.length - shown.length)} جای دیگه <Icon name="down" size={16} /></button>
-          )}
+          <Suspense fallback={<div className="shimmer mapbox wz-map" />}>
+            <PlaceMap areas={areas} chosen={placed && !here ? { lat: ctx.lat, lon: ctx.lon, label: ctx.place } : null} onArea={choose} onTap={tap} />
+          </Suspense>
+          {placed && !here ? (
+            <div className="wz-chosen fadein"><Icon name="pin" size={17} /> <span className="grow ellipsis">خرید از <b>{ctx.place}</b></span></div>
+          ) : !placed && <p className="meta center" style={{ margin: 0 }}>روی اسم محله‌ها فروشگاه داریم؛ هر جای دیگهٔ نقشه رو هم می‌شه زد.</p>}
+          {empty && <div className="notice"><Icon name="alert" size={16} /> این دور و بر فروشگاهی ثبت نشده؛ نزدیک‌تر به یکی از محله‌های روی نقشه بزن.</div>}
         </>
       )}
-      <WizFoot onBack={onBack} next={{ label: <>ادامه <Icon name="left" size={18} /></>, onClick: onNext }} />
+      <WizFoot onBack={onBack} next={{ label: <>ادامه <Icon name="left" size={18} /></>, onClick: onNext, disabled: !placed }} />
     </>
   );
 }
@@ -145,10 +175,12 @@ export function HowStep({ ctx, setCtx, onFilters, onBack, onNext }: {
   onNext: () => void;
 }) {
   const n = activeFilters(ctx);
+  const here = shortPlace(ctx.place) === HERE;
   const minutes = ctx.range_mode === "time" ? ctx.range_minutes : null;
   return (
     <>
-      <StepHead title="چطوری می‌ری؟" sub="فقط فروشگاه‌هایی رو نشون می‌دم که تا این زمان بهشون می‌رسی." />
+      <StepHead title={here ? "چطوری می‌ری؟" : "اونجا چطوری می‌گردی؟"}
+        sub={`فقط فروشگاه‌هایی رو نشون می‌دم که از ${here ? "جایی که هستی" : ctx.place} تا این زمان بهشون می‌رسی.`} />
       <div className="wz-opts" role="radiogroup">
         {MODES.map(([m, icon, label]) => (
           <Choice key={m} on={ctx.travel_mode === m} onClick={() => setCtx({ ...ctx, travel_mode: m })} icon={icon} title={label} />

@@ -81,6 +81,18 @@ def places(q: str = ""):
     """Free-text start point: preset squares, metro stations, shopping centres and neighbourhoods."""
     return {"items": gazetteer.search(q[:60])}
 
+
+@app.get("/api/places/areas")
+def place_areas():
+    """Neighbourhood bubbles for the map: name, position and how many shops."""
+    return {"items": gazetteer.areas()}
+
+
+@app.get("/api/places/at")
+def place_at(lat: float, lon: float):
+    """A point tapped on the map: the nearest landmark's name and the shops within a short walk."""
+    return gazetteer.at(lat, lon)
+
 # ---------------------------------------------------------------------------------------
 # Agent chat
 # ---------------------------------------------------------------------------------------

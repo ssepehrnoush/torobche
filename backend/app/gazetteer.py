@@ -21,6 +21,8 @@ _FOLD = str.maketrans({"ء": "", "ٔ": "", "أ": "ا", "إ": "ا", "آ": "ا"})
 _PUNCT = re.compile(r"[^\w]")
 KIND_ORDER = {"place": 0, "metro": 1, "mall": 2, "area": 3}
 SAME_BUILDING_KM = 0.4
+NEAR_KM = 1.0  # a tapped point is named after a known place this close
+WALK_KM = 1.5  # «shops within a short walk» of a tapped point
 # «مترو امام» means a station even though «میدان امام خمینی» is a preset; the first word says which kind comes first.
 _HINT = {"مترو": "metro", "ایستگاه": "metro", "پاساژ": "mall", "مجتمع": "mall", "ساختمان": "mall", "محله": "area"}
 
@@ -118,7 +120,31 @@ def search(text: str, limit: int = 8) -> list[dict]:
         if e["label"] in seen:
             continue
         seen.add(e["label"])
-        out.append({k: v for k, v in e.items() if not k.startswith("_")})
+        out.append(_public(e))
         if len(out) == limit:
             break
     return out
+
+
+def _public(e: dict) -> dict:
+    return {k: v for k, v in e.items() if not k.startswith("_")}
+
+
+def areas(min_shops: int = 10) -> list[dict]:
+    """Neighbourhoods with enough shops to be worth a trip: the map's tappable bubbles."""
+    return [_public(e) | {"shops": e["_w"]} for e in entries() if e["kind"] == "area" and e["_w"] >= min_shops]
+
+
+@lru_cache(maxsize=1)
+def _shop_points() -> list[tuple[float, float]]:
+    return [(r["lat"], r["lon"]) for r in db.q("SELECT lat, lon FROM shops WHERE lat IS NOT NULL AND lon IS NOT NULL")]
+
+
+def at(lat: float, lon: float) -> dict:
+    """Name a point tapped on the map after the closest landmark, and count the shops within a short walk,
+    so a tap where no shop is listed can say so instead of showing an empty list later."""
+    landmarks = [e for e in entries() if e["kind"] != "mall" or e["_w"] >= 10]  # tiny centres make odd names
+    best = min(landmarks, key=lambda e: haversine_km(lat, lon, e["lat"], e["lon"]))
+    near = _public(best) if haversine_km(lat, lon, best["lat"], best["lon"]) <= NEAR_KM else None
+    shops = sum(1 for a, b in _shop_points() if haversine_km(lat, lon, a, b) <= WALK_KM)
+    return {"label": f"نزدیک {best['label']}" if near else "نقطهٔ روی نقشه", "near": near, "shops_nearby": shops}

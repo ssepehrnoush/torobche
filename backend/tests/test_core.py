@@ -129,3 +129,15 @@ def test_free_text_places_find_malls_metro_and_areas():
     assert any(h["kind"] == "area" for h in gazetteer.search("شیخ هادی"))
     assert gazetteer.search("فردوسی")[0]["kind"] == "place"
     assert gazetteer.search("x") == [] and gazetteer.search("نیویورک") == []
+
+
+@needs_db
+def test_map_areas_and_tapped_points():
+    from app import gazetteer
+    names = {a["label"]: a for a in gazetteer.areas()}
+    assert "تجریش" in names and names["فردوسی"]["shops"] > 1000
+    tajrish = gazetteer.at(35.8046, 51.4339)
+    assert "تجریش" in tajrish["label"] and tajrish["shops_nearby"] > 0
+    desert = gazetteer.at(35.55, 51.90)  # far east of the city: nothing near, nothing listed
+    assert desert["near"] is None and desert["shops_nearby"] == 0
+

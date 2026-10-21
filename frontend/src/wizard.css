@@ -87,3 +87,16 @@ main.wz-main > :not(.wz-foot) { animation: wzin .26s var(--ease) both; }
 .wz-btns .btn { height: 48px; }
 .wz-back { flex: none; padding: 0 14px 0 16px; }
 .wz-skip { display: flex; width: 100%; height: 30px; margin: -2px 0 8px; }
+
+/* place map (map version): neighbourhood bubbles, the chosen pin, the chosen line under it */
+.wz-map { height: 300px; }
+.areapin {
+  transform: translate(-50%, -50%); width: max-content; padding: 1px 8px; border-radius: 10px; background: var(--surface); color: var(--ink);
+  font: 800 11.5px/1.9 var(--font); white-space: nowrap; box-shadow: 0 0 0 1px var(--chip-line), 0 2px 6px rgba(15, 23, 42, .16); cursor: pointer;
+}
+.areapin.big { font-size: 12.5px; background: var(--brand-soft); color: var(--brand-ink); box-shadow: 0 0 0 1px #f6b9c0, 0 2px 6px rgba(15, 23, 42, .16); }
+.areapin.on { background: var(--blue-2); color: #fff; box-shadow: 0 2px 8px rgba(59, 130, 246, .4); }
+.pickpin { transform: translate(-50%, -50%); width: 22px; height: 22px; border-radius: 50%; background: var(--brand); border: 3px solid #fff; box-shadow: 0 0 0 8px rgba(233, 30, 51, .18), 0 2px 6px rgba(15, 23, 42, .3); }
+.wz-chosen { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; background: var(--blue-soft); color: var(--ink-2); font-size: 13.5px; }
+.wz-chosen svg { color: var(--blue); flex: none; }
+.wz-chosen b { color: var(--ink); }

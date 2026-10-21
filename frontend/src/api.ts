@@ -69,4 +69,6 @@ export const api = {
     if (!r.ok) throw new Error(`/api/places ${r.status}`);
     return (await r.json()) as { items: import("./types").PlaceHit[] };
   },
+  placeAreas: () => get<{ items: import("./types").PlaceArea[] }>("/api/places/areas"),
+  placeAt: (lat: number, lon: number) => get<import("./types").PointInfo>(`/api/places/at?lat=${lat}&lon=${lon}`),
 };
