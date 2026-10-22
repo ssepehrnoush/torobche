@@ -4,6 +4,7 @@ import { fa, jalali, toman } from "../fmt";
 import { Icon } from "../icons";
 import type { Authenticity, Ctx, MallGuide, ShopDetail } from "../types";
 import { Fold, MetroStrip, OpenText } from "./bits";
+import { useNavPick } from "./NavPick";
 import { Sheet } from "./Sheet";
 import { freshTone } from "./ShopsView";
 
@@ -23,6 +24,7 @@ export function ShopSheet({ sid, pid, ctx, auth, onClose, onInquiry, onVisit, on
   const [d, setD] = useState<ShopDetail | null>(null);
   const [err, setErr] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({ guide: true });
+  const nav = useNavPick();
   const flip = (k: string) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   useEffect(() => {
     setD(null);
@@ -32,6 +34,7 @@ export function ShopSheet({ sid, pid, ctx, auth, onClose, onInquiry, onVisit, on
   }, [sid, pid]); // eslint-disable-line
   const today = d?.week.find((w) => w.today);
   return (
+    <>
     <Sheet title={d?.name ?? "فروشگاه"} onClose={onClose}
       footer={d && pid ? (
         <div className="row" style={{ gap: 8 }}>
@@ -103,9 +106,7 @@ export function ShopSheet({ sid, pid, ctx, auth, onClose, onInquiry, onVisit, on
             </Fold>
             <Fold title="تماس و مسیریابی" open={!!open.contact} onToggle={() => flip("contact")}>
               <div className="navbtns">
-                <a className="btn ghost sm" href={d.nav.neshan} target="_blank" rel="noreferrer"><Icon name="nav" size={15} /> مسیریابی با نشان</a>
-                <a className="btn ghost sm" href={d.nav.balad} target="_blank" rel="noreferrer">بلد</a>
-                <a className="btn ghost sm" href={d.nav.google} target="_blank" rel="noreferrer">گوگل‌مپ</a>
+                <button className="btn ghost sm" onClick={() => nav.open(d.nav)}><Icon name="nav" size={15} /> مسیریابی{nav.appName ? ` با ${nav.appName}` : ""}</button>
               </div>
               <div className="row wrap" style={{ gap: 6 }}>
                 {d.phone && <a className="btn ghost sm" href={`tel:${d.phone}`}><Icon name="phone" size={15} /> {fa(d.phone)}</a>}
@@ -134,6 +135,8 @@ export function ShopSheet({ sid, pid, ctx, auth, onClose, onInquiry, onVisit, on
         </>
       )}
     </Sheet>
+    {nav.sheet}
+    </>
   );
 }
 

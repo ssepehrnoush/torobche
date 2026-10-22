@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { api } from "../../api";
-import { fa, toman } from "../../fmt";
+import { fa, HERE, shortPlace, toman } from "../../fmt";
 import { Icon } from "../../icons";
 import type { Ctx, VisitPlan } from "../../types";
+import { useNavPick } from "../NavPick";
 import { StepHead, WizFoot } from "./Shell";
 
 const MapView = lazy(() => import("../MapView").then((m) => ({ default: m.MapView })));
@@ -20,6 +21,7 @@ export function GoStep({ pid, sids, confirmed, ctx, toast, onBack, onOpenShop }:
   const [plan, setPlan] = useState<VisitPlan | null>(null);
   const [err, setErr] = useState(false);
   const [tries, setTries] = useState(0);
+  const nav = useNavPick();
   useEffect(() => {
     setPlan(null);
     setErr(false);
@@ -62,6 +64,7 @@ export function GoStep({ pid, sids, confirmed, ctx, toast, onBack, onOpenShop }:
 
       <Suspense fallback={<div className="shimmer mapbox small" />}>
         <MapView you={plan.origin} route={route} small onPick={onOpenShop}
+          youLabel={plan.origin.label === HERE ? "شما اینجایید" : `شروع: ${shortPlace(plan.origin.label)}`}
           pins={plan.stops.map((s, i) => ({ id: s.sid, lat: s.lat, lon: s.lon, label: fa(i + 1), tone: s.open.state === "closed" ? "closed" : "pick" }))} />
       </Suspense>
 
@@ -80,15 +83,22 @@ export function GoStep({ pid, sids, confirmed, ctx, toast, onBack, onOpenShop }:
                 {s.confirmed_price ? <> · <b className="green-txt">{toman(s.confirmed_price)}</b></> : s.price ? ` · ${toman(s.price)}` : ""}
               </span>
             </button>
-            <a className="btn ghost sm" href={s.nav.neshan} target="_blank" rel="noreferrer"><Icon name="nav" size={15} /> مسیر</a>
+            <button className="btn ghost sm" onClick={() => nav.open(s.nav)}><Icon name="nav" size={15} /> مسیر</button>
           </div>
         ))}
       </div>
 
+      {first && nav.appName && (
+        <p className="footnote">
+          مسیریابی با {nav.appName} باز می‌شه. <button className="textbtn" onClick={() => nav.open(first.nav, true)}>عوضش کن</button>
+        </p>
+      )}
+
       {first && (
-        <WizFoot onBack={onBack} next={{ label: <><Icon name="nav" size={18} /> مسیریابی تا {first.name}</>, href: first.nav.neshan }}
+        <WizFoot onBack={onBack} next={{ label: <><Icon name="nav" size={18} /> مسیریابی تا {first.name}</>, onClick: () => nav.open(first.nav) }}
           extra={<button className="btn ghost icon" onClick={share} aria-label="ارسال برنامه"><Icon name="share" size={19} /></button>} />
       )}
+      {nav.sheet}
     </>
   );
 }

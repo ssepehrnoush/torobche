@@ -28,6 +28,7 @@ const DEFAULT_CTX: Ctx = {
   visit: "now", installments_only: false, torob_pay_only: false, open_only: false,
   range_mode: "time", range_minutes: 20, travel_mode: "car", originality: "any",
 };
+
 function loadCtx(): Ctx {
   try {
     const raw = localStorage.getItem("bazargard.ctx");
@@ -140,7 +141,7 @@ export default function Wizard() {
             patch((a) => ({ ...a, message: ev.message, ask: ev.questions }));
             break;
           case "products":
-            patch((a) => ({ ...a, message: ev.message, products: ev.items, notice: ev.notice }));
+            patch((a) => ({ ...a, message: ev.message, products: ev.items, notice: ev.notice, suggestions: ev.suggestions }));
             break;
           case "shops":
             patch((a) => ({ ...a, message: ev.message, shopsPid: ev.pid }));
@@ -150,7 +151,7 @@ export default function Wizard() {
             startInquiry(ev.pid, ev.sids);
             break;
           case "message":
-            patch((a) => ({ ...a, message: ev.text }));
+            patch((a) => ({ ...a, message: ev.text, suggestions: ev.suggestions }));
             break;
           case "error":
             patch((a) => ({ ...a, error: ev.text }));

@@ -27,6 +27,9 @@ SESSIONS: dict[str, dict] = {}
 SESSION_TTL_S = 6 * 3600
 MAX_HISTORY = 24
 MAX_ITERATIONS = 4
+# A whole turn gets this long with the model; after that the rule-based search answers. The shared key
+# queues requests one at a time, and a test on 10-22 waited over two minutes for an answer.
+TURN_DEADLINE_S = 25.0
 
 
 def session(sid: str | None) -> tuple[str, dict]:
@@ -218,6 +221,12 @@ def fmt_search(res: dict) -> str:
     f = res["facets"]
     if f.get("intent_category"):
         out.append(f"دستهٔ اصلی این جستجو (از روی عنوان‌ها): {f['intent_category']}")
+    if f.get("budget_miss"):
+        bm = f["budget_miss"]
+        out.append(f"هیچ کالایی از دستهٔ «{bm['category'] or 'خواسته‌شده'}» در بودجهٔ کاربر نیست"
+                   + (f"؛ ارزان‌ترینش {toman(bm['cheapest'])} تومان است" if bm.get("cheapest") else "")
+                   + ". همین را صادقانه بگو و با ask_user بازهٔ قیمتِ واقعی (از نقاط قیمتِ زیر) پیشنهاد کن. "
+                     "کالای دستهٔ دیگری (مثل باتری، قاب یا لوازم جانبی) را به جای آن پیشنهاد نکن.")
     if f.get("installment_only_items"):
         out.append("فقط کالاهایی آمده‌اند که دست‌کم یک فروشگاه قسطی دارند.")
     out.append("facet دسته‌ها: " + "، ".join(f"{c} ({n})" for c, n in f["categories"]))
@@ -584,6 +593,12 @@ async def run_turn(session_id: str | None, text: str, ctx: Ctx, ui: dict) -> Asy
             sess["messages"][-1]["content"] += (
                 f"{PREFETCH_MARK} اولیه با «{pq}» (اگر نتایج مرتبط نیست یا دسته اشتباه است، خودت دوباره جستجو کن):\n"
                 + fmt_search(res) + "]")
+        elif res["facets"].get("budget_miss"):
+            # nothing of this kind in the budget: say so with its real price ranges, no model round trip
+            # (the model once answered «pick one of the options» without giving any)
+            yield budget_miss_ask(res, sess)
+            yield {"type": "done"}
+            return
     if not llm.available():
         async for ev in fallback_turn(text, ctx, sess, "no_llm"):
             yield ev
@@ -605,10 +620,14 @@ async def run_turn(session_id: str | None, text: str, ctx: Ctx, ui: dict) -> Asy
                 choice = {"type": "function", "function": {"name": "ask_user"}}
             tools = TOOLS if it < MAX_ITERATIONS - 1 else TERMINAL_TOOLS  # last round: must answer the user
             llm.check_session_budget(sid)
-            msg = await llm.chat(msgs, tools=tools, tool_choice=choice, temperature=0.3)
-        except llm.LLMUnavailable as e:
-            log.warning("agent fallback (session %s): %s", sid[:8], e)
-            reason = "budget" if isinstance(e, llm.BudgetExceeded) else "llm_error"
+            left = TURN_DEADLINE_S - (time.monotonic() - t0)
+            if left < 3:
+                raise asyncio.TimeoutError
+            msg = await asyncio.wait_for(llm.chat(msgs, tools=tools, tool_choice=choice, temperature=0.3), timeout=left)
+        except (llm.LLMUnavailable, asyncio.TimeoutError) as e:
+            log.warning("agent fallback (session %s): %s", sid[:8], str(e) or "turn deadline")
+            reason = ("budget" if isinstance(e, llm.BudgetExceeded) else
+                      "slow" if isinstance(e, asyncio.TimeoutError) else "llm_error")
             async for ev in fallback_turn(text, ctx, sess, reason):
                 yield ev
             return
@@ -687,6 +706,17 @@ def _budget_chip(v: int) -> str:
     return f"تا {fa_digits(max(100, -(-v // 100_000) * 100))} هزار"
 
 
+def budget_miss_ask(res: dict, sess: dict) -> dict:
+    """«No phone under 1 million»: the honest answer, and budget chips taken from that kind's real prices."""
+    miss, pts = res["facets"]["budget_miss"], res["facets"]["price_points"]
+    msg = (f"در این بازهٔ قیمت {miss['category'] or 'کالایی'} پیدا نکردم"
+           + (f"؛ ارزان‌ترینش از {fa_text(str(miss['cheapest']))} تومان شروع می‌شود." if miss.get("cheapest") else "."))
+    opts = list(dict.fromkeys(_budget_chip(p) for p in pts[1:] if p))[:4]
+    sess["last_query"] = res["query"]  # the chip answer refines this search, with or without the model
+    sess["messages"].append({"role": "assistant", "content": msg + " بودجه را چقدر بگذارم؟ " + "، ".join(opts)})
+    return {"type": "ask", "message": msg, "questions": [{"question": "بودجه رو تا چقدر بالا ببرم؟", "options": opts, "multi": False}]}
+
+
 async def fallback_turn(text: str, ctx: Ctx, sess: dict, reason: str) -> AsyncIterator[dict]:
     """Rule-based path so the app keeps working without an LLM: the same search and ranking, reasons
     built from the data, and refinement chips (brand, budget) that keep the previous query."""
@@ -723,12 +753,23 @@ async def fallback_turn(text: str, ctx: Ctx, sess: dict, reason: str) -> AsyncIt
         out.append({**it, "why": "، ".join(why) or "مطابق جستجوی شما؛ فروشگاه نزدیکی ثبت نشده", "tag": tag})
     sugg = [f"فقط {b}" for b, _ in res["facets"]["brands"][:3] if not brand or b != brand]
     pts = res["facets"]["price_points"]
-    if pts and not ctx.budget_max:
+    miss = res["facets"].get("budget_miss")
+    if miss and not out:
+        sugg = []  # a brand does not help when the budget is the problem
+    if pts and (not ctx.budget_max or miss):  # out of budget: offer the ranges this kind of product really has
         sugg += list(dict.fromkeys(_budget_chip(p) for p in (pts[1], pts[3]) if p))
-    msg = (f"برای «{q}»{' با برند ' + brand if brand else ''} این‌ها بهترین تطابق‌ها با محل و شرایط شما هستند."
-           if out else "چیزی پیدا نکردم؛ عبارت ساده‌تری امتحان کنید (مثلاً نوع کالا و برند).")
+    if out:
+        msg = f"برای «{q}»{' با برند ' + brand if brand else ''} این‌ها بهترین تطابق‌ها با محل و شرایط شما هستند."
+    elif miss:
+        msg = (f"در این بازهٔ قیمت {miss['category'] or 'کالایی'} پیدا نکردم"
+               + (f"؛ ارزان‌ترینش از {fa_text(str(miss['cheapest']))} تومان شروع می‌شود" if miss.get("cheapest") else "")
+               + ". بازهٔ قیمت را بیشتر کنید.")
+    else:
+        msg = "چیزی پیدا نکردم؛ عبارت ساده‌تری امتحان کنید (مثلاً نوع کالا و برند)."
     note = ("سقف استفاده از دستیار گفتگو در این ساعت پر شد؛ جستجو، رتبه‌بندی و مقایسهٔ فروشگاه‌ها کامل کار می‌کند."
             if reason == "budget" else
+            "دستیار گفتگو این بار کند بود، برای همین جستجوی مستقیم جواب داد؛ رتبه‌بندی و مقایسهٔ فروشگاه‌ها کامل کار می‌کند."
+            if reason == "slow" else
             "دستیار گفتگو الان در دسترس نیست؛ جستجو، رتبه‌بندی و مقایسهٔ فروشگاه‌ها کامل کار می‌کند.")
     sess["messages"].append({"role": "assistant", "content": msg})
     yield {"type": "products", "message": msg, "items": out, "suggestions": sugg[:5], "notice": note, "fallback": reason}

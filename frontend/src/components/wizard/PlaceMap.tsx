@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import { fa } from "../../fmt";
 import type { PlaceArea } from "../../types";
+import { liveIcon } from "../MapView";
 
 const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const TEHRAN: [number, number] = [35.72, 51.41];
@@ -24,6 +25,16 @@ function Follow({ at }: { at: { lat: number; lon: number } | null }) {
     if (at && !map.getBounds().pad(-0.15).contains([at.lat, at.lon])) map.flyTo([at.lat, at.lon], Math.max(map.getZoom(), 14), { duration: 0.6 });
   }, [map, at?.lat, at?.lon]); // eslint-disable-line
   return null;
+}
+
+/** «نزدیک خودم»: the map zooms in on the GPS fix, where a pulsing dot says «شما اینجایید», so it is plain
+    that the location was found (and where) before going on. */
+function You({ at }: { at: { lat: number; lon: number } }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo([at.lat, at.lon], 15, { duration: 0.8 });
+  }, [map, at.lat, at.lon]);
+  return <Marker position={[at.lat, at.lon]} icon={liveIcon("شما اینجایید")} interactive={false} zIndexOffset={1000} />;
 }
 
 /** Bubbles that would cover a busier neighbourhood's bubble wait for a closer zoom, so names never pile up. */
@@ -62,9 +73,10 @@ function Areas({ areas, chosen, onArea }: { areas: PlaceArea[]; chosen: string |
 }
 
 /** The place step's map: one bubble per neighbourhood that has shops, a tap anywhere drops the pin. */
-export function PlaceMap({ areas, chosen, onArea, onTap }: {
+export function PlaceMap({ areas, chosen, you, onArea, onTap }: {
   areas: PlaceArea[];
   chosen: { lat: number; lon: number; label: string } | null;
+  you?: { lat: number; lon: number } | null;
   onArea: (a: PlaceArea) => void;
   onTap: (lat: number, lon: number) => void;
 }) {
@@ -77,6 +89,7 @@ export function PlaceMap({ areas, chosen, onArea, onTap }: {
         <Follow at={chosen} />
         <Areas areas={areas} chosen={chosen?.label ?? null} onArea={onArea} />
         {chosen && <Marker position={[chosen.lat, chosen.lon]} icon={chosenIcon} interactive={false} zIndexOffset={1000} />}
+        {you && <You at={you} />}
       </MapContainer>
     </div>
   );

@@ -149,11 +149,14 @@ export function WhereStep({ ctx, placed, pickPlace, toast, onBack, onNext }: {
       ) : (
         <>
           <Suspense fallback={<div className="shimmer mapbox wz-map" />}>
-            <PlaceMap areas={areas} chosen={placed && !here ? { lat: ctx.lat, lon: ctx.lon, label: ctx.place } : null} onArea={choose} onTap={tap} />
+            <PlaceMap areas={areas} chosen={placed && !here ? { lat: ctx.lat, lon: ctx.lon, label: ctx.place } : null}
+              you={here ? { lat: ctx.lat, lon: ctx.lon } : null} onArea={choose} onTap={tap} />
           </Suspense>
           {placed && !here ? (
             <div className="wz-chosen fadein"><Icon name="pin" size={17} /> <span className="grow ellipsis">خرید از <b>{ctx.place}</b></span></div>
-          ) : !placed && <p className="meta center" style={{ margin: 0 }}>روی اسم محله‌ها فروشگاه داریم؛ هر جای دیگهٔ نقشه رو هم می‌شه زد.</p>}
+          ) : here ? (
+            <div className="wz-chosen fadein"><Icon name="locate" size={17} /> <span className="grow">پیدات کردم؛ فروشگاه‌های <b>نزدیک همین‌جا</b> رو نشون می‌دم.</span></div>
+          ) : <p className="meta center" style={{ margin: 0 }}>روی اسم محله‌ها فروشگاه داریم؛ هر جای دیگهٔ نقشه رو هم می‌شه زد.</p>}
           {empty && <div className="notice"><Icon name="alert" size={16} /> این دور و بر فروشگاهی ثبت نشده؛ نزدیک‌تر به یکی از محله‌های روی نقشه بزن.</div>}
         </>
       )}

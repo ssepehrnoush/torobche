@@ -189,7 +189,14 @@ export type Reply = {
   restock?: string | null;
   installments: string | null;
   authenticity_check?: { status: "confirmed_copy" | "unclear" | "claimed_original"; label: string; confidence?: number; reasons?: string[] } | null;
+  via?: string; // the channel that got the answer: sms | bale | call
+  real?: boolean; // tapped on the shop's answer page, not simulated
 };
+
+/** A shop's own order of contact channels, and the one-tap answer page. */
+export type ContactChannel = { k: string; label: string };
+export type ShopAnswer = { outcome: "confirmed" | "price_changed" | "out_of_stock" | "no_answer"; price: number | null; real: boolean; at?: string; expired?: boolean };
+export type ShopReplyPage = { shop: string; price: number | null; product: string; image: string | null; answer: ShopAnswer | null };
 
 export type InquiryShop = {
   sid: number;
@@ -201,6 +208,9 @@ export type InquiryShop = {
   distance_label: string;
   draft: string;
   authenticity?: Authenticity;
+  channels?: ContactChannel[];
+  reply_token?: string; // set once the inquiry is sent
+  sms?: string; // the short text with the answer link (path only; the page adds its origin)
 };
 
 export type InquirySummary = {
