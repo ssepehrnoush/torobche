@@ -14,7 +14,7 @@ import httpx
 log = logging.getLogger("whatsapp")
 SESSION = "default"
 # where the shop's answer page lives; a WhatsApp message needs the full link, unlike the SMS template
-PUBLIC_URL = os.environ.get("PUBLIC_URL", "https://bazargard-map.liara.run").rstrip("/")
+PUBLIC_URL = os.environ.get("PUBLIC_URL", "https://torobche.liara.run").rstrip("/")
 
 
 def _url() -> str:

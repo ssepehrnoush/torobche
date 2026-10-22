@@ -27,7 +27,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent  # torob/
 HACKATHON = ROOT.parent
 API = "https://api.iran.liara.ir"
-APP = os.environ.get("LIARA_APP", "torobche-gen")  # the Generative UI copy; never deploy it over bazargard-map
+APP = os.environ.get("LIARA_APP", "torobche")  # the Generative UI copy; never deploy it over bazargard-map
 PLAN = os.environ.get("LIARA_PLAN", "small-g2")
 BUNDLE = os.environ.get("LIARA_BUNDLE", "standard")  # basic allows only a 5-minute build
 PORT = 8000
@@ -117,6 +117,7 @@ def set_envs() -> None:
         {"key": "LLM_PROVIDER", "value": "boxapi"},
         {"key": "LLM_FALLBACK_PROVIDER", "value": "none"},
         {"key": "BOXAPI_KEY", "value": ENV.get("BOXAPI_KEY", "")},
+        {"key": "PUBLIC_URL", "value": f"https://{APP}.liara.run"},  # the answer link in the WhatsApp text
     ]
     if os.environ.get("BOXAPI_MODEL"):
         variables.append({"key": "BOXAPI_MODEL", "value": os.environ["BOXAPI_MODEL"]})

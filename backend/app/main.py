@@ -10,7 +10,7 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -379,6 +379,12 @@ if config.STATIC_DIR.is_dir():
     assets = config.STATIC_DIR / "assets"
     if assets.is_dir():
         app.mount("/assets", StaticFiles(directory=assets), name="assets")
+
+    @app.get("/r/{token}", include_in_schema=False)
+    def reply_link(token: str):
+        if config.REPLY_FALLBACK_URL and token.isascii() and token.isalnum() and contact.reply_page(token) is None:
+            return RedirectResponse(f"{config.REPLY_FALLBACK_URL}/r/{token}", status_code=302)
+        return FileResponse(config.STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"})
 
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str):

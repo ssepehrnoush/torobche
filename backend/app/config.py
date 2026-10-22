@@ -82,4 +82,7 @@ LLM_CONCURRENCY = int(os.environ.get("LLM_CONCURRENCY", "1"))
 LLM_CALLS_PER_MINUTE = int(os.environ.get("LLM_CALLS_PER_MINUTE", "14"))
 LLM_SESSION_CALLS_PER_HOUR = int(os.environ.get("LLM_SESSION_CALLS_PER_HOUR", "60"))
 # Current wall-clock can be pinned for demos/tests, e.g. "2026-10-22T11:30" (Tehran time).
+# The SMS link torobche.lemonai.ir/r/<code> lands on this app; a code it never issued came from the
+# backup copy, so it is handed on there instead of showing «expired».
+REPLY_FALLBACK_URL = os.environ.get("REPLY_FALLBACK_URL", "https://bazargard-map.liara.run").strip().rstrip("/")
 FIXED_NOW = os.environ.get("FIXED_NOW", "").strip() or None

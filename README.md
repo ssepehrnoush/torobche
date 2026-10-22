@@ -11,7 +11,7 @@
 
 > شماره‌تلفن‌های دادهٔ هکاتون ساختگی‌اند؛ بنابراین جواب فروشگاه‌ها **شبیه‌سازی** می‌شود و این در رابط کاربری همه‌جا گفته شده. ولی **هر کسی می‌تواند خودش جای مغازه‌دار باشد**: در قدم «بپرسم؟» شمارهٔ موبایل خودش را می‌دهد و واتساپ، پیامک و تماس واقعی به گوشی خودش می‌آید و جوابش زنده در اپ می‌نشیند.
 
-- نسخهٔ آنلاین: [bazargard-map.liara.run](https://bazargard-map.liara.run) (روی لیارا؛ با `?demo` می‌شود سناریوی جواب هر مغازه را برای ضبط ویدیو انتخاب کرد)
+- نسخهٔ آنلاین: [torobche.liara.run](https://torobche.liara.run) (روی لیارا؛ با `?demo` می‌شود سناریوی جواب هر مغازه را برای ضبط ویدیو انتخاب کرد)
 - کد: همین ریپو، با مجوز [MIT](LICENSE) (فقط برای کد؛ دیتاست، برند ترب و فونت ایران‌یکان مال صاحبانشان است و در ریپو نیستند). نسخهٔ اولیهٔ چتی: [github.com/ssepehrnoush/torob-bazargard](https://github.com/ssepehrnoush/torob-bazargard)
 - ویدیوی دمو و سناریو: [VIDEO-SCRIPT.md](VIDEO-SCRIPT.md)
 - یادداشت‌های کامل داده: [DATASET-NOTES.md](DATASET-NOTES.md)
@@ -188,7 +188,7 @@ cd frontend && npm install && npm run dev     # http://localhost:5173
 | `KAVENEGAR_TEMPLATE` | `torobche-inquiry` | نام الگوی پیامک در کاوه‌نگار |
 | `WAHA_URL` / `WAHA_API_KEY` | | آدرس و کلید دروازهٔ واتساپ (سازگار با WAHA)؛ بدون آن راه واتساپ امتحان نمی‌شود |
 | `DEMO_SHOP_PHONES` | | شماره‌های دمو برای سناریوی «زنده» (اختیاری، با ویرگول) |
-| `PUBLIC_URL` | `https://bazargard-map.liara.run` | آدرس عمومی اپ برای لینک داخل پیام واتساپ |
+| `PUBLIC_URL` | `https://torobche.liara.run` | آدرس عمومی اپ برای لینک داخل پیام واتساپ |
 
 تست‌ها: `cd backend && .venv/Scripts/python -m pytest -q`
 
