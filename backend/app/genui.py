@@ -81,12 +81,12 @@ def _first_search(need: str, ctx: Ctx) -> tuple[str, dict]:
 
 
 def _budget_block(res: dict) -> dict | None:
-    pts = (res.get("facets") or {}).get("price_points") or []
-    if len(pts) < 5 or not pts[0]:
+    pts = [p for p in (res.get("facets") or {}).get("price_points") or [] if p and p > 0]
+    if len(pts) < 3:
         return None
     lo, hi = pts[0], pts[-1]
     step = max(10_000, int(round((hi - lo) / 20, -4)) or 10_000)
-    return {"min": max(step, int(lo // step * step)), "max": int(-(-hi // step) * step), "step": step, "median": pts[2]}
+    return {"min": max(step, int(lo // step * step)), "max": int(-(-hi // step) * step), "step": step, "median": pts[len(pts) // 2]}
 
 
 def _cards(res: dict, pids: list[int]) -> list[dict]:
@@ -214,5 +214,6 @@ async def next_screen(need: str, answers: list[dict], ctx: Ctx, known: dict, sea
 
 
 async def _products_instead(res: dict, ctx: Ctx, q: str, brand: str | None, out: dict, known: dict) -> dict:
-    out.update(block="products", title="کدوم رو می‌خوای؟", products=_cards(res, [i["pid"] for i in res["items"][:4]]))
+    out.update(block="products", title="کدوم رو می‌خوای؟", why="این‌ها به نیازت نزدیک‌ترن.",
+               products=_cards(res, [i["pid"] for i in res["items"][:4]]))
     return {"screen": out, "ctx": ctx.model_dump(), "known": known, "search": {"q": q, "brand": brand}}
