@@ -20,7 +20,7 @@ from .timegeo import now_tehran
 log = logging.getLogger("kavenegar")
 API = "https://api.kavenegar.com/v1"
 # Registered in the Kavenegar panel by Daii; the link's fixed part and the brand are in its own text.
-TEMPLATE = os.environ.get("KAVENEGAR_TEMPLATE", "torobche-inquiry2")
+TEMPLATE = os.environ.get("KAVENEGAR_TEMPLATE", "torobche-inquiry")
 DAILY_CAP = int(os.environ.get("KAVENEGAR_DAILY_CAP", "30"))  # texts and calls together, per Tehran day
 # A tester may give their own number to play the shop; these keep that from becoming a way to pester someone.
 PER_PHONE = int(os.environ.get("KAVENEGAR_PER_PHONE", "2"))  # real inquiries a day to one number
