@@ -168,6 +168,7 @@ main.wz-main > :not(.wz-foot) { animation: wzin .26s var(--ease) both; }
 .gen-crow.head { box-shadow: none; align-items: start; }
 .gen-cprod { display: flex; flex-direction: column; align-items: center; gap: 4px; font-weight: 700; font-size: 12px; line-height: 1.6; }
 .gen-crow.pick .btn { width: 100%; }
+.gen-copy { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; margin-top: 4px; font-size: 11.5px; line-height: 1.6; color: var(--amber); }
 .gen-tag { margin-right: 6px; padding: 1px 8px; border-radius: 9px; font-size: 11px; font-weight: 800; color: var(--ai); background: #f1edff; }
 /* generative shops layout: the one shop the model recommends, or the cheaper one a little further */
 .gen-best { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 14px; background: #fbfaff; box-shadow: inset 0 0 0 2px #d9cffb; }

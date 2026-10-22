@@ -15,6 +15,11 @@ export function GenBadge({ s }: { s: { source: string; why: string } }) {
   );
 }
 
+/** A product whose own title says it is a copy, or that costs a fraction of the same model elsewhere. */
+function CopyHint({ why }: { why: string }) {
+  return <span className="gen-copy"><span className="tag amber">احتمالاً غیراصل</span><span>{why}</span></span>;
+}
+
 export function GenWait({ onBack }: { onBack: () => void }) {
   return (
     <>
@@ -115,6 +120,7 @@ function GenProducts({ s, busy, onBack, onPick, onAnswer }: {
                 <b className="wz-price">{p.price_min ? `از ${short(p.nearby_min_price || p.price_min)} تومان` : "قیمت ثبت نشده"}</b>
                 {p.n_nearby ? ` · ${fa(p.n_nearby)} فروشگاه نزدیک` : ""}
               </span>
+              {p.copy_hint && <CopyHint why={p.copy_hint} />}
             </span>
             <span className={"radio" + (sel === p.pid ? " on" : "")}>{sel === p.pid && <i />}</span>
           </button>
@@ -147,6 +153,7 @@ function GenCompareView({ s, onBack, onPick }: { s: GenScreen; onBack: () => voi
             <span key={p.pid} className="gen-cprod">
               <Img src={p.image} className="pimg sm" />
               <span className="clamp2">{p.title}</span>
+              {p.copy_hint && <span className="tag amber" title={p.copy_hint}>احتمالاً غیراصل</span>}
             </span>
           ))}
         </div>

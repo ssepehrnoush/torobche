@@ -150,3 +150,12 @@ def test_gen_never_reasks_a_known_place_or_travel():
     assert _valid({"block": "place", "title": "کجا؟"}, res, {"place": False, "travel": False})
     assert not _valid({"block": "travel", "title": "چطوری؟"}, res, {"place": True, "travel": True})
     assert _valid({"block": "travel", "title": "چطوری؟"}, res, {"place": True, "travel": False})
+
+
+def test_copy_hint_from_the_title_and_model_code():
+    from app.authenticity import _model_key, product_hint
+    assert product_hint("گوشی طرح سامسونگ S24 Ultra | حافظه 128 رم 4 گیگابایت", "گوشی موبایل", "سامسونگ", 18_900_000)
+    assert product_hint("تیشرت طرح دار نخی", "تیشرت", None, 300_000) is None  # «طرح» alone is just a pattern
+    assert _model_key("گوشی سامسونگ (ویتنام) S25 Ultra 5G | حافظه 256 رم 12 گیگابایت") == ("s 25", frozenset({"ultra"}))
+    assert _model_key("لپ تاپ ایسوس i7 نسل 12") is None  # the processor is not the model
+    assert _model_key("تلویزیون ال جی QLED Ultra HD 4K") is None

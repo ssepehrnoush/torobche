@@ -308,7 +308,7 @@ export type Stroll = {
 export type GenKnown = { place: boolean; travel: boolean };
 export type GenAnswer = { q: string; a: string; budget?: number };
 export type GenCompare = {
-  products: { pid: number; title: string; image: string | null; price_min: number | null; n_nearby?: number; nearby_min_price?: number | null }[];
+  products: { pid: number; title: string; image: string | null; price_min: number | null; n_nearby?: number; nearby_min_price?: number | null; copy_hint?: string | null }[];
   rows: { key: string; values: (string | null)[]; differs: boolean }[];
 };
 export type GenScreen = {
@@ -319,7 +319,7 @@ export type GenScreen = {
   options?: string[];
   multi?: boolean;
   budget?: { min: number; max: number; step: number; median: number };
-  products?: { pid: number; title: string; brand: string | null; image: string | null; price_min: number | null; nearby_min_price?: number | null; n_nearby?: number; n_shops: number }[];
+  products?: { pid: number; title: string; brand: string | null; image: string | null; price_min: number | null; nearby_min_price?: number | null; n_nearby?: number; n_shops: number; copy_hint?: string | null }[];
   compare?: GenCompare;
 };
 export type GenTurn = { screen: GenScreen; ctx: Ctx; known: GenKnown; search: { q: string; brand: string | null } };

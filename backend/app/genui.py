@@ -15,7 +15,7 @@ import json
 import logging
 import re
 
-from . import catalog, llm, shops
+from . import authenticity, catalog, llm, shops
 from .agent import fmt_search, prefetch_query, quick_prefs
 from .models import Ctx, range_label
 from .places import PLACES
@@ -65,7 +65,10 @@ def _known(ctx: Ctx, known: dict) -> str:
 
 
 def _search(q: str, ctx: Ctx, brand: str | None) -> dict:
-    return catalog.search_products(q, ctx, brand=brand or None, max_price=ctx.budget_max, limit=8)
+    res = catalog.search_products(q, ctx, brand=brand or None, max_price=ctx.budget_max, limit=8)
+    for it in res["items"]:  # the model reads it too (fmt_search), so it can prefer the originals
+        it["copy_hint"] = authenticity.product_hint(it["title"], it["category"], it["brand"], it.get("price_median") or it.get("price_min"))
+    return res
 
 
 def _first_search(need: str, ctx: Ctx) -> tuple[str, dict]:
@@ -94,7 +97,7 @@ def _budget_block(res: dict) -> dict | None:
 
 def _cards(res: dict, pids: list[int]) -> list[dict]:
     by = {it["pid"]: it for it in res["items"]}
-    return [{k: by[p].get(k) for k in ("pid", "title", "brand", "image", "price_min", "nearby_min_price", "n_nearby", "n_shops")}
+    return [{k: by[p].get(k) for k in ("pid", "title", "brand", "image", "price_min", "nearby_min_price", "n_nearby", "n_shops", "copy_hint")}
             for p in pids if p in by]
 
 
@@ -110,6 +113,7 @@ def _compare(pids: list[int], ctx: Ctx, need: str = "") -> dict:
     near = catalog.nearby_offer_stats([p["pid"] for p in res["products"]], ctx)
     for p in res["products"]:
         p.update(near.get(p["pid"], {}))
+        p["copy_hint"] = authenticity.product_hint(p["title"], p["category"], p["brand"], p.get("price_median") or p.get("price_min"))
     words = [w for w in need.split() if len(w) > 2]
 
     def rank(r: dict) -> tuple:

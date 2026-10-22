@@ -213,7 +213,8 @@ def fmt_search(res: dict) -> str:
             near += f"، نزدیک‌ترین {it['nearest_km']} کیلومتر"
         out.append(f"pid={it['pid']} | {it['title']} | برند: {it['brand'] or '-'} | دسته: {it['category']} | "
                    f"قیمت ثبت‌شده: {toman(it['price_min'])} تا {toman(it['price_max'])} | فروشگاه‌ها: {it['n_shops']} ({near})"
-                   + (f" | قسطی: {it['n_installment']} فروشگاه" if it.get("n_installment") else "") + (f" | {specs}" if specs else ""))
+                   + (f" | قسطی: {it['n_installment']} فروشگاه" if it.get("n_installment") else "") + (f" | {specs}" if specs else "")
+                   + (f" | احتمالاً غیراصل: {it['copy_hint']}" if it.get("copy_hint") else ""))
     if res["items"] and not any(it.get("n_nearby") for it in res["items"]):
         out.append("هشدار: هیچ‌کدام از این کالاها در محدودهٔ کاربر فروشگاه ندارند. نگو «نزدیک». اگر کاربر کالای مشخصی "
                    "خواسته یا پرسیده از کجا بخرد، find_shops را برای همان کالا بزن: ممکن است پیشنهاد دورتر خوبی (اکازیون) "
