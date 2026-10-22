@@ -254,9 +254,13 @@ export type VisitPlan = {
   warnings: string[];
   checklist: string[];
   origin: { lat: number; lon: number; label: string };
+  paths?: MapPath[];
 };
 
-export type Place = { id: string; label: string; lat: number; lon: number };
+/** One drawn stretch of the trip: along real streets when `real`, otherwise the straight dotted line. */
+export type MapPath = { mode: string; real: boolean; points: [number, number][] };
+
+export type Place ={ id: string; label: string; lat: number; lon: number };
 
 /** A typed start point: preset square, metro station, shopping centre or neighbourhood (/api/places). */
 export type PlaceHit = Place & { kind: "place" | "metro" | "mall" | "area"; sub: string };

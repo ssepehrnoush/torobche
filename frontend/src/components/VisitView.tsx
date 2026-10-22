@@ -54,7 +54,7 @@ export function VisitView({ pid, sids, confirmed, ctx, onOpenShop, toast }: {
   return (
     <>
       <Suspense fallback={<div className="shimmer mapbox" />}>
-        <MapView you={plan.origin} route={route} onPick={onOpenShop}
+        <MapView you={plan.origin} route={route} paths={plan.paths} onPick={onOpenShop}
           pins={plan.stops.map((s, i) => ({ id: s.sid, lat: s.lat, lon: s.lon, label: fa(i + 1), tone: s.open.state === "closed" ? "closed" : "pick" }))} />
       </Suspense>
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from . import shops
+from . import shops, streets
 from .models import Ctx
 from . import travel
 from .timegeo import fa_digits, haversine_km, now_tehran, open_status, resolve_visit_time
@@ -67,4 +67,5 @@ def plan_visit(pid: int | None, sids: list[int], ctx: Ctx, confirmed: dict[int, 
     return {"start": start.isoformat(), "start_label": fa_digits(start.strftime("%H:%M")),
             "end_label": fa_digits(t.strftime("%H:%M")), "total_minutes": int((t - start).total_seconds() // 60),
             "total_km": round(total_km, 1), "stops": stops, "warnings": warnings, "checklist": checklist,
-            "origin": {"lat": ctx.lat, "lon": ctx.lon, "label": ctx.place}}
+            "origin": {"lat": ctx.lat, "lon": ctx.lon, "label": ctx.place},
+            "paths": streets.paths((ctx.lat, ctx.lon), stops)}
