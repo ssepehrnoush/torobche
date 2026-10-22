@@ -134,6 +134,18 @@ main.wz-main > :not(.wz-foot) { animation: wzin .26s var(--ease) both; }
 .wz-in.off { background: var(--hair); color: var(--ink-2); }
 .wz-in-meta { font-size: 11.5px; color: var(--muted); }
 .wz-shoplink { align-self: flex-end; font-size: 12px; }
+
+/* «play the shop yourself»: the tester's own number gets the first shop's real text and call */
+.wz-tester { background: var(--surface); border-radius: 14px; box-shadow: inset 0 0 0 1.5px var(--chip-line); transition: box-shadow .15s; }
+.wz-tester.on { box-shadow: inset 0 0 0 2px var(--blue-2); background: #f8fbff; }
+.wz-tester-head { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; text-align: right; }
+.wz-tester.on .wz-opt-ico { background: var(--blue-soft); color: var(--blue); }
+.wz-tester-body { display: flex; flex-direction: column; gap: 8px; padding: 0 14px 14px; }
+.wz-tester-body input {
+  height: 48px; border-radius: 12px; border: 1.5px solid var(--chip-line); padding: 0 14px; background: #fff;
+  font: inherit; font-size: 17px; letter-spacing: 1px; text-align: left;
+}
+.wz-tester-body input:focus { outline: none; border-color: var(--blue-2); }
 .shoptext { align-self: stretch; max-width: none; white-space: pre-wrap; word-break: break-word; }
 .shopqr { width: 184px; height: 184px; align-self: center; margin: 4px auto; padding: 8px; background: #fff; box-shadow: 0 0 0 1px var(--line); border-radius: 12px; }
 .shopqr svg { width: 100%; height: 100%; display: block; }

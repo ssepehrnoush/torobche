@@ -278,13 +278,15 @@ class InquiryIn(BaseModel):
     sids: list[int] = Field(min_length=1, max_length=5)
     ctx: Ctx = Ctx()
     forced: dict[int, str] | None = None  # demo control: sid -> outcome
+    tester_phone: str | None = Field(None, max_length=20)  # the tester plays the first shop on their own phone
 
 
 @app.post("/api/inquiry")
 async def inquiry(body: InquiryIn, request: Request):
-    log.info("inquiry pid=%s sids=%s (simulated; only a «زنده» demo shop is really texted, on the demo phone)",
-             body.pid, body.sids)
-    return sse(contact.run_inquiry(body.pid, body.sids, body.ctx, body.forced, client_key(request)))
+    # the tester's number is never logged
+    log.info("inquiry pid=%s sids=%s tester=%s (simulated except a «زنده» or tester shop, really texted)",
+             body.pid, body.sids, bool(body.tester_phone))
+    return sse(contact.run_inquiry(body.pid, body.sids, body.ctx, body.forced, client_key(request), body.tester_phone))
 
 
 @app.post("/api/inquiry/draft")

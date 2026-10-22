@@ -1,8 +1,9 @@
 """Real text messages and calls to the demo shop's phone, through Kavenegar.
 
 The dataset's shop numbers are fake, so nothing ever goes to a dataset number: only the demo scenario
-«زنده» reaches out, and only to the phones in DEMO_SHOP_PHONES. The account is the same one Lemon's own
-clinic messages go out on, so a daily cap keeps a stuck loop or a curious visitor from spending it.
+«زنده» reaches out, to the phones in DEMO_SHOP_PHONES, or a tester who typed their own number to play the
+shop. The account is the same one Lemon's own clinic messages go out on, so daily caps (overall, per
+number, per browser) keep a stuck loop or a curious visitor from spending it or pestering anyone.
 
 The key travels in the URL path (Kavenegar's REST design), so httpx's request log is kept away from it.
 """
@@ -21,6 +22,9 @@ API = "https://api.kavenegar.com/v1"
 # Registered in the Kavenegar panel by Daii; the link's fixed part and the brand are in its own text.
 TEMPLATE = os.environ.get("KAVENEGAR_TEMPLATE", "torobche-inquiry")
 DAILY_CAP = int(os.environ.get("KAVENEGAR_DAILY_CAP", "30"))  # texts and calls together, per Tehran day
+# A tester may give their own number to play the shop; these keep that from becoming a way to pester someone.
+PER_PHONE = int(os.environ.get("KAVENEGAR_PER_PHONE", "2"))  # real inquiries a day to one number
+PER_CLIENT = int(os.environ.get("KAVENEGAR_PER_CLIENT", "3"))  # real inquiries a day from one browser
 ERRORS = {
     424: "الگوی پیامک در کاوه‌نگار هنوز تأیید نشده",
     418: "اعتبار کاوه‌نگار تمام شده",
@@ -57,8 +61,32 @@ def demo_phones() -> list[str]:
     return [p for p in out if p]
 
 
+def configured() -> bool:
+    return bool(_key())
+
+
 def enabled() -> bool:
     return bool(_key() and demo_phones())
+
+
+_claims: dict[str, dict[str, int]] = {}
+
+
+def claim(phone: str, client: str | None) -> str | None:
+    """Book one real inquiry to a tester's own number. None when booked, otherwise why not (Persian)."""
+    day = now_tehran().strftime("%Y-%m-%d")
+    if day not in _claims:
+        _claims.clear()
+        _claims[day] = {}
+    c = _claims[day]
+    if c.get(f"p:{phone}", 0) >= PER_PHONE:
+        return "به این شماره امروز به اندازهٔ کافی استعلام رفته؛ این بار مغازه‌ها شبیه‌سازی می‌شن"
+    if client and c.get(f"c:{client}", 0) >= PER_CLIENT:
+        return "از این گوشی امروز به اندازهٔ کافی استعلام واقعی رفته؛ این بار مغازه‌ها شبیه‌سازی می‌شن"
+    c[f"p:{phone}"] = c.get(f"p:{phone}", 0) + 1
+    if client:
+        c[f"c:{client}"] = c.get(f"c:{client}", 0) + 1
+    return None
 
 
 def fit(text: str, spaces: int, limit: int = 100) -> str:

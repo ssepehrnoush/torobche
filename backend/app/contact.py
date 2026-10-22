@@ -394,14 +394,37 @@ async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bo
     await queue.put({"type": "reply", **plan})
 
 
+def live_phones(sids: list[int], forced: dict[int, str] | None, tester: str | None,
+                client: str | None) -> tuple[dict[int, str], dict[int, str], str | None]:
+    """Which shops are really texted and called, on which phone: a tester's own number plays the first shop
+    (within the per-number and per-browser caps), and «زنده» demo shops go to DEMO_SHOP_PHONES.
+    Returns (forced with those shops set to «زنده», sid -> phone, a note for the screen)."""
+    forced, phones, note = dict(forced or {}), {}, None
+    if tester and sids:
+        phone = kavenegar.normalize_phone(tester)
+        if not phone:
+            note = "این شماره موبایل ایران نیست؛ این بار مغازه‌ها شبیه‌سازی می‌شن"
+        elif not kavenegar.configured():
+            note = "پیامک و تماس واقعی الان در دسترس نیست؛ این بار مغازه‌ها شبیه‌سازی می‌شن"
+        else:
+            note = kavenegar.claim(phone, client)
+            if not note:
+                forced[sids[0]] = "live"
+                phones[sids[0]] = phone
+    demo = kavenegar.demo_phones() if kavenegar.enabled() else []
+    live = [sid for sid in sids if forced.get(sid) == "live" and sid not in phones]
+    if demo:
+        phones.update({sid: demo[i % len(demo)] for i, sid in enumerate(live)})
+    return forced, phones, note
+
+
 async def run_inquiry(pid: int, sids: list[int], ctx: Ctx, forced: dict[int, str] | None = None,
-                      budget_key: str | None = None) -> AsyncIterator[dict]:
+                      budget_key: str | None = None, tester_phone: str | None = None) -> AsyncIterator[dict]:
     product, by_sid, targets, start = await asyncio.to_thread(prepare, pid, sids, ctx)
-    phones: dict[int, str] = {}  # sid -> the demo phone that really gets this shop's text and call
+    phones: dict[int, str] = {}  # sid -> the phone that really gets this shop's text and call
+    note = None
     if product:
-        demo = kavenegar.demo_phones() if kavenegar.enabled() else []
-        live = [t["sid"] for t in targets if (forced or {}).get(t["sid"]) == "live"]
-        phones = {sid: demo[i % len(demo)] for i, sid in enumerate(live)} if demo else {}
+        forced, phones, note = live_phones([t["sid"] for t in targets], forced, tester_phone, budget_key)
         for sh, t in zip(start["shops"], targets):
             sh["reply_token"] = tok = _new_page(pid, t, product)
             sh["sms"] = sms_text(t["name"], product["title"], f"/r/{tok}")  # the page prefixes its own origin
@@ -411,6 +434,8 @@ async def run_inquiry(pid: int, sids: list[int], ctx: Ctx, forced: dict[int, str
     yield start
     if not product:
         return
+    if note:
+        yield {"type": "error", "text": note}
     replies: list[dict] = []
     queue: asyncio.Queue = asyncio.Queue()
     tasks = []

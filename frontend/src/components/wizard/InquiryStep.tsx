@@ -21,9 +21,14 @@ const VIA: Record<string, string> = { sms: "پیامک", bale: "بله", call: "
 const CHAN_ICON: Record<string, string> = { sms: "chat", bale: "send", call: "phone" };
 type Chan = { channel: string; label: string; state: "sent" | "calling" | "no_answer"; real?: boolean };
 
+/* A tester can play the first shop on their own phone; the number is remembered on this device only. */
+const TESTER_KEY = "torobche.testerPhone";
+const digits = (s: string) => s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).replace(/\D/g, "");
+const isMobile = (s: string) => /^(0098|98|0)?9\d{9}$/.test(digits(s));
+
 /** One system line in a shop's thread: a channel tried, ringing, or left unanswered. */
 function ChanLine({ c, live }: { c: Chan; live: boolean }) {
-  const label = c.real ? `${c.label} واقعی به گوشی دمو` : c.label;
+  const label = c.real ? `${c.label} واقعی` : c.label;
   const text = c.state === "no_answer" ? `${c.label} جواب نداد`
     : c.state === "calling" ? (live ? `${label}، در حال زنگ زدن…` : `${label}، وصل شد`) : `${label} رفت`;
   return (
@@ -54,6 +59,14 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
   const [full, setFull] = useState(false);
   const [log, setLog] = useState<Record<number, Chan[]>>({});
   const [link, setLink] = useState<InquiryShop | null>(null);
+  const [tester, setTester] = useState(() => {
+    try {
+      return localStorage.getItem(TESTER_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const [play, setPlay] = useState(false);
   const ran = useRef("");
   const key = `${st.pid}:${st.sids.join(",")}`;
 
@@ -76,8 +89,16 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
     const f: Record<number, string> = {};
     for (const [k, v] of Object.entries(forced)) if (v) f[+k] = v;
     const names: Record<number, string> = {};
+    const tester_phone = play && isMobile(tester) ? tester : null;
+    if (tester_phone) {
+      try {
+        localStorage.setItem(TESTER_KEY, tester_phone);
+      } catch {
+        /* not remembered, asked again next time */
+      }
+    }
     try {
-      await stream("/api/inquiry", { pid: st.pid, sids: st.sids, ctx, forced: Object.keys(f).length ? f : null }, (ev) => {
+      await stream("/api/inquiry", { pid: st.pid, sids: st.sids, ctx, forced: Object.keys(f).length ? f : null, tester_phone }, (ev) => {
         if (ev.type === "inquiry_start") {
           for (const s of ev.shops as InquiryShop[]) names[s.sid] = s.name;
           setSt((s) => ({ ...s, shops: ev.shops, callScript: ev.call_script, notice: ev.notice, product: ev.product }));
@@ -195,6 +216,30 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
         })}
       </div>
 
+      {!st.started && shops.length > 0 && (
+        <div className={"wz-tester" + (play ? " on" : "")}>
+          <button className="wz-tester-head" onClick={() => setPlay(!play)} role="checkbox" aria-checked={play}>
+            <span className="wz-opt-ico"><Icon name="mobile" size={20} /></span>
+            <span className="grow wz-opt-txt">
+              <span className="wz-opt-t">خودت جای مغازه‌دار جواب بده</span>
+              <span className="meta">پیام «{shops[0].name}» واقعاً به گوشیت می‌آد</span>
+            </span>
+            <span className={"selbox" + (play ? " on" : "")}>{play && <Icon name="check" size={14} stroke={2.6} />}</span>
+          </button>
+          {play && (
+            <div className="wz-tester-body fadein">
+              <input value={tester} onChange={(e) => setTester(e.target.value)} inputMode="tel" dir="ltr" autoComplete="tel"
+                placeholder="0912 345 6789" aria-label="شماره موبایل خودت" />
+              {tester.trim() && !isMobile(tester) && <span className="red-txt small">این شمارهٔ موبایل ایران نیست</span>}
+              <p className="meta">
+                یه پیامک با لینک جواب، و اگه تا ۲۵ ثانیه جواب ندادی یه تماس خودکار از طرف «هوش مصنوعی ترب» به این شماره می‌آد.
+                شماره فقط برای همین استعلام استفاده می‌شه و هر شماره روزی حداکثر دو بار.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {st.started && !sum && nIn === shops.length && shops.length > 0 && (
         <div className="typing"><i /><i /><i /> <span>دارم جمع‌بندی می‌کنم</span></div>
       )}
@@ -207,7 +252,8 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
       <p className="footnote"><Icon name="info" size={13} /> هر مغازه خودش گفته از چه راهی و به چه ترتیبی بپرسیم. جواب‌ها شبیه‌سازی می‌شن چون شماره‌های داده ساختگی‌اند، ولی صفحهٔ جواب مغازه‌دار واقعیه.</p>
 
       {!st.started ? (
-        <WizFoot onBack={onBack} next={{ label: <><Icon name="send" size={18} className="flip" /> بفرست</>, onClick: start, disabled: !preview || running }} />
+        <WizFoot onBack={onBack} next={{ label: <><Icon name="send" size={18} className="flip" /> بفرست</>, onClick: start,
+          disabled: !preview || running || (play && !isMobile(tester)) }} />
       ) : !done ? (
         <WizFoot next={{ label: "صبر کن…", disabled: true }} />
       ) : nOk ? (

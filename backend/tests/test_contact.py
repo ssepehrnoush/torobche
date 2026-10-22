@@ -87,6 +87,29 @@ def test_a_refused_text_is_shown_and_the_call_still_goes(monkeypatch):
     assert next(e for e in events if e["type"] == "channel")["real"] is False
 
 
+def test_a_tester_plays_the_first_shop_within_the_daily_caps(monkeypatch):
+    monkeypatch.setenv("KAVENEGAR_API_KEY", "x")
+    monkeypatch.delenv("DEMO_SHOP_PHONES", raising=False)
+    monkeypatch.setattr(kavenegar, "_claims", {})
+    forced, phones, note = contact.live_phones([7, 8], None, "۰۹۱۲ ۰۰۰ ۰۰۰۰", "browser-a")
+    assert note is None and forced == {7: "live"} and phones == {7: "09120000000"}
+    contact.live_phones([7], None, "09120000000", "browser-b")
+    _, phones, note = contact.live_phones([7], None, "09120000000", "browser-c")  # third time today for this number
+    assert phones == {} and "شبیه‌سازی" in note
+    contact.live_phones([7], None, "09351110000", "browser-a")
+    contact.live_phones([7], None, "09351110001", "browser-a")
+    _, phones, note = contact.live_phones([7], None, "09351110002", "browser-a")  # fourth from this browser
+    assert phones == {} and note
+
+
+def test_a_landline_or_no_key_falls_back_to_simulation(monkeypatch):
+    monkeypatch.setenv("KAVENEGAR_API_KEY", "x")
+    assert contact.live_phones([7], None, "02147009161", None)[1] == {}
+    monkeypatch.delenv("KAVENEGAR_API_KEY")
+    _, phones, note = contact.live_phones([7], None, "09120000000", None)
+    assert phones == {} and "در دسترس نیست" in note
+
+
 def test_daily_cap_stops_before_any_request(monkeypatch):
     monkeypatch.setattr(kavenegar, "DAILY_CAP", 1)
     monkeypatch.setattr(kavenegar, "_used", {})
