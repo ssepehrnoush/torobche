@@ -1,4 +1,4 @@
-# Bazargard: one image = API + built front end + read-only SQLite built from the hackathon dataset.
+# Torobche: one image = API + built front end + read-only SQLite built from the hackathon dataset.
 # The dataset zip is not in git; the deploy script puts it at deploy/dataset.zip in the build context.
 
 FROM python:3.12-slim AS data

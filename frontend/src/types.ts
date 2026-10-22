@@ -211,6 +211,7 @@ export type InquiryShop = {
   channels?: ContactChannel[];
   reply_token?: string; // set once the inquiry is sent
   sms?: string; // the short text with the answer link (path only; the page adds its origin)
+  real?: boolean; // demo «زنده» with Kavenegar set up: the text and call really go to the demo phone
 };
 
 export type InquirySummary = {

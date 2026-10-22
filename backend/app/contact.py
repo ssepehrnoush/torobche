@@ -5,6 +5,8 @@ each shop's answer is drawn from a seeded scenario whose odds depend on real dat
 registered price is, whether the shop is open right now per its declared hours). The agent side is
 real: it drafts the message, runs the inquiries in parallel, reads the answers, keeps confirmed
 facts separate from registered ones, and immediately proposes alternatives for failed shops.
+The one exception is the demo scenario «زنده» once Kavenegar is set up: that shop gets a real text and,
+if nobody taps, a real call, on the demo phone (see kavenegar.py).
 """
 from __future__ import annotations
 
@@ -12,10 +14,11 @@ import asyncio
 import hashlib
 import random
 import secrets
+import string
 import time
 from typing import AsyncIterator
 
-from . import catalog, llm, shops
+from . import catalog, kavenegar, llm, shops
 from .models import Ctx
 from .timegeo import fa_digits, fa_text, now_tehran
 
@@ -25,7 +28,10 @@ from .timegeo import fa_digits, fa_text, now_tehran
 CHANNELS = {"sms": "پیامک", "bale": "پیام بله", "call": "تماس خودکار"}
 CHANNEL_WAIT_S = 2.6  # simulated: how long one channel is given before the next is tried
 LIVE_WAIT_S = 180.0  # demo «زنده»: how long a real tap on the shop's page is awaited, over all channels
+REAL_CHANNELS = ["sms", "call"]  # the demo phone is really texted, then called if the text goes untapped
+REAL_TEXT_WAIT_S = 25.0
 REPLY_TTL_S = 6 * 3600
+CODE_CHARS = string.ascii_letters + string.digits  # the code rides in a Kavenegar token, which refuses «_»
 
 OUTCOMES = ("confirmed", "price_changed", "out_of_stock", "no_answer")
 ODDS = {  # by price freshness tier
@@ -85,11 +91,18 @@ def contact_prefs(shop_id: str) -> list[str]:
     return ["call", "sms"]
 
 
-def sms_text(product_title: str, price: int | None, link: str) -> str:
-    """The short text a shop gets (by text message or Bale): what is asked and the one-tap answer link."""
-    title = product_title if len(product_title) <= 60 else product_title[:57] + "…"
-    return (f"ترب: مشتری «{title}»" + (f" با قیمت {toman_fa(price)} تومان" if price else "")
-            + f" را می‌خواهد. موجود دارید؟ جواب با یک لمس: {link}")
+def sms_text(shop_name: str, product_title: str, link: str) -> str:
+    """The short text a shop gets (by text message or Bale), worded as the Kavenegar template TEMPLATE so
+    the screen shows exactly what the demo phone receives."""
+    return (f"فروشگاه {kavenegar.fit(shop_name, 5)}\nیک مشتری نزدیک شما این کالا را می‌خواهد: "
+            f"{kavenegar.fit(product_title, 8)}\nموجود دارید؟ جواب با یک لمس:\n{link}\nهوش مصنوعی ترب")
+
+
+def call_text(shop_name: str, product_title: str) -> str:
+    """What the automated call reads out: it only points to the text, since a call cannot take the answer."""
+    return (f"سلام، وقت بخیر. از هوش مصنوعی ترب تماس می‌گیریم. یک مشتری نزدیک فروشگاه {kavenegar.fit(shop_name, 5)}، "
+            f"{kavenegar.fit(product_title, 5)} را می‌خواهد. لینک جواب برایتان پیامک شد؛ "
+            "با یک لمس روی آن بگویید موجود دارید یا نه. ممنون.")
 
 
 # Answer pages: token -> what the shop's page shows and what the shop answered. One server process
@@ -101,7 +114,7 @@ def _new_page(pid: int, item: dict, product: dict) -> str:
     now = time.monotonic()
     for k in [k for k, v in _pages.items() if now - v["created"] > REPLY_TTL_S]:
         del _pages[k]
-    tok = secrets.token_urlsafe(9)
+    tok = "".join(secrets.choice(CODE_CHARS) for _ in range(10))
     _pages[tok] = {"created": now, "pid": pid, "sid": item["sid"], "shop": item["name"], "price": item.get("price"),
                    "product": product["title"], "image": product.get("image"), "answer": None, "event": asyncio.Event()}
     return tok
@@ -321,19 +334,28 @@ def prepare(pid: int, sids: list[int], ctx: Ctx) -> tuple[dict | None, dict, lis
     return product, by_sid, targets, start
 
 
-async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bool, queue: asyncio.Queue) -> None:
+async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bool, queue: asyncio.Queue,
+                 phone: str | None = None) -> None:
     """Ask one shop on its channels in its own order. A real tap on its answer page wins at any moment;
-    otherwise the simulated answer arrives on one of the channels (usually the first), or none answers."""
+    otherwise the simulated answer arrives on one of the channels (usually the first), or none answers.
+    With `phone` (demo «زنده» and Kavenegar set up) the text and the call really go to that phone."""
     page = _pages[tok]
     answered = plan["outcome"] not in ("no_answer", "closed")
     answer_on = 0
     if answered and len(channels) > 1 and random.Random(tok).random() < 0.35:
         answer_on = 1  # the first channel goes unread, the next one gets the answer
     for i, ch in enumerate(channels):
-        await queue.put({"type": "channel", "sid": item["sid"], "channel": ch, "label": CHANNELS[ch],
-                         "state": "calling" if ch == "call" else "sent"})
+        ev = {"type": "channel", "sid": item["sid"], "channel": ch, "label": CHANNELS[ch],
+              "state": "calling" if ch == "call" else "sent"}
+        if phone and ch in REAL_CHANNELS:
+            note = await (kavenegar.send_text(phone, item["name"], page["product"], tok) if ch == "sms"
+                          else kavenegar.call(phone, call_text(item["name"], page["product"])))
+            ev["real"] = note is None
+            if note:
+                await queue.put({"type": "error", "text": f"{CHANNELS[ch]} واقعی نرفت: {note}"})
+        await queue.put(ev)
         if live:
-            wait = LIVE_WAIT_S / len(channels)
+            wait = REAL_TEXT_WAIT_S if phone and i < len(channels) - 1 else LIVE_WAIT_S / len(channels)
         elif plan["outcome"] == "closed":
             wait = 1.0
         else:
@@ -360,10 +382,17 @@ async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bo
 async def run_inquiry(pid: int, sids: list[int], ctx: Ctx, forced: dict[int, str] | None = None,
                       budget_key: str | None = None) -> AsyncIterator[dict]:
     product, by_sid, targets, start = await asyncio.to_thread(prepare, pid, sids, ctx)
+    phones: dict[int, str] = {}  # sid -> the demo phone that really gets this shop's text and call
     if product:
+        demo = kavenegar.demo_phones() if kavenegar.enabled() else []
+        live = [t["sid"] for t in targets if (forced or {}).get(t["sid"]) == "live"]
+        phones = {sid: demo[i % len(demo)] for i, sid in enumerate(live)} if demo else {}
         for sh, t in zip(start["shops"], targets):
             sh["reply_token"] = tok = _new_page(pid, t, product)
-            sh["sms"] = sms_text(product["title"], t["price"], f"/r/{tok}")  # the page prefixes its own origin
+            sh["sms"] = sms_text(t["name"], product["title"], f"/r/{tok}")  # the page prefixes its own origin
+            if t["sid"] in phones:
+                sh["channels"] = [{"k": c, "label": CHANNELS[c]} for c in REAL_CHANNELS]
+                sh["real"] = True
     yield start
     if not product:
         return
@@ -375,7 +404,7 @@ async def run_inquiry(pid: int, sids: list[int], ctx: Ctx, forced: dict[int, str
         f = (forced or {}).get(t["sid"])
         plan = simulate_reply(t, s, pid, None if f == "live" else f, contact_auth(t, ctx))
         tasks.append(asyncio.create_task(
-            _reach(t, [c["k"] for c in sh["channels"]], plan, sh["reply_token"], f == "live", queue)))
+            _reach(t, [c["k"] for c in sh["channels"]], plan, sh["reply_token"], f == "live", queue, phones.get(t["sid"]))))
     try:
         while len(replies) < len(tasks):
             ev = await queue.get()

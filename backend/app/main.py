@@ -31,7 +31,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="Bazargard: Torob in-person shopping agent", docs_url="/api/docs",
+app = FastAPI(title="Torobche: Torob in-person shopping agent", docs_url="/api/docs",
               openapi_url="/api/openapi.json", lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=1200)
 
@@ -282,7 +282,8 @@ class InquiryIn(BaseModel):
 
 @app.post("/api/inquiry")
 async def inquiry(body: InquiryIn, request: Request):
-    log.info("inquiry pid=%s sids=%s (simulated; nothing is sent to shops)", body.pid, body.sids)
+    log.info("inquiry pid=%s sids=%s (simulated; only a «زنده» demo shop is really texted, on the demo phone)",
+             body.pid, body.sids)
     return sse(contact.run_inquiry(body.pid, body.sids, body.ctx, body.forced, client_key(request)))
 
 

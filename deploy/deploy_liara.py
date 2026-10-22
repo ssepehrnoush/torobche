@@ -1,10 +1,11 @@
-"""Deploy Bazargard to Liara through its REST API (no CLI login needed).
+"""Deploy Torobche to Liara through its REST API (no CLI login needed).
 
     python -I deploy/deploy_liara.py --check     # balance + app status, changes nothing
     python -I deploy/deploy_liara.py --create    # create the app if it does not exist (spends credit)
     python -I deploy/deploy_liara.py             # pack, upload, set envs, release, follow build logs
 
-Secrets (LIARA_API_TOKEN, BOXAPI_KEY) are read from the hackathon .env and never printed.
+Secrets (LIARA_API_TOKEN, BOXAPI_KEY, KAVENEGAR_API_KEY) are read from the hackathon .env and never printed.
+The real demo text and call need KAVENEGAR_API_KEY and DEMO_SHOP_PHONES there too; without them nothing is sent.
 The build context is packed explicitly (not from .gitignore), so the dataset zip, which is not in
 git, travels with the deploy and the image builds its own SQLite database from it.
 """
@@ -119,6 +120,9 @@ def set_envs() -> None:
     ]
     if os.environ.get("BOXAPI_MODEL"):
         variables.append({"key": "BOXAPI_MODEL", "value": os.environ["BOXAPI_MODEL"]})
+    for k in ("KAVENEGAR_API_KEY", "DEMO_SHOP_PHONES", "KAVENEGAR_TEMPLATE"):
+        if ENV.get(k):
+            variables.append({"key": k, "value": ENV[k]})
     st, d = call("POST", "/v1/projects/update-envs", {"project": APP, "variables": variables})
     print("envs:", st, (d.get("message") if isinstance(d, dict) else "")[:120] if st != 200 else "ok")
 

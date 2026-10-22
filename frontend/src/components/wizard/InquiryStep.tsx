@@ -17,7 +17,7 @@ const OUTCOME: Record<Reply["outcome"], { label: string; tone: string }> = {
 };
 const SCENARIOS: [string, string][] = [["", "خودکار"], ["live", "زنده"], ["confirmed", "موجود"], ["price_changed", "تغییر قیمت"], ["out_of_stock", "ناموجود"], ["no_answer", "بی‌پاسخ"]];
 const VIA: Record<string, string> = { sms: "پیامک", bale: "بله", call: "تماس خودکار" };
-type Chan = { label: string; state: "sent" | "calling" | "no_answer" };
+type Chan = { label: string; state: "sent" | "calling" | "no_answer"; real?: boolean };
 
 /** One quiet line per shop: its own order of channels before sending, the live channel while asking, how it answered after. */
 function chanLine(s: InquiryShop, started: boolean, c: Chan | undefined, r: Reply | undefined): string | null {
@@ -28,7 +28,8 @@ function chanLine(s: InquiryShop, started: boolean, c: Chan | undefined, r: Repl
   if (!started) return s.channels?.length ? `راه تماس به خواست خودش: ${s.channels.map((x) => x.label).join("، بعد ")}` : null;
   if (!c) return null;
   if (c.state === "no_answer") return `${c.label} جواب نداد`;
-  return c.state === "calling" ? `${c.label}، در حال زنگ زدن…` : `${c.label} رفت، منتظر جواب…`;
+  const label = c.real ? `${c.label} واقعی به گوشی دمو` : c.label;
+  return c.state === "calling" ? `${label}، در حال زنگ زدن…` : `${label} رفت، منتظر جواب…`;
 }
 
 /** Step 6: show the message once, send it with one button, then one status line per shop and a short verdict. */
@@ -73,10 +74,11 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
       await stream("/api/inquiry", { pid: st.pid, sids: st.sids, ctx, forced: Object.keys(f).length ? f : null }, (ev) => {
         if (ev.type === "inquiry_start") {
           setSt((s) => ({ ...s, shops: ev.shops, callScript: ev.call_script, notice: ev.notice, product: ev.product }));
-          const live = (ev.shops as InquiryShop[]).find((x) => f[x.sid] === "live");
-          if (live) setLink(live); // demo «زنده»: the QR is up at once, for the second phone
+          // demo «زنده» without a real text: the QR is up at once, for the second phone
+          const live = (ev.shops as InquiryShop[]).find((x) => f[x.sid] === "live" && !x.real);
+          if (live) setLink(live);
         }
-        else if (ev.type === "channel") setChan((c) => ({ ...c, [ev.sid]: { label: ev.label, state: ev.state } }));
+        else if (ev.type === "channel") setChan((c) => ({ ...c, [ev.sid]: { label: ev.label, state: ev.state, real: ev.real } }));
         else if (ev.type === "reply") setSt((s) => ({ ...s, replies: { ...s.replies, [ev.sid]: ev as Reply } }));
         else if (ev.type === "summary") setSt((s) => ({ ...s, summary: ev as InquirySummary }));
         else if (ev.type === "error") toast(ev.text);
