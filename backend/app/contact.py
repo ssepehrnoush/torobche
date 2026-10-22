@@ -19,18 +19,22 @@ import time
 from datetime import timedelta
 from typing import AsyncIterator
 
-from . import catalog, kavenegar, llm, shops
+from . import catalog, kavenegar, llm, shops, whatsapp
 from .models import Ctx
 from .timegeo import fa_digits, fa_text, now_tehran
 
 # How a shop is reached: each shop says which channels it wants, in its own order, and the next one is
 # tried only when the previous one stays unanswered. The default is a text message whose link opens a
 # one-tap answer page (/r/<token>), so the answer comes back structured instead of as free text.
-CHANNELS = {"sms": "پیامک", "bale": "پیام بله", "call": "تماس خودکار"}
+CHANNELS = {"whatsapp": "واتساپ", "sms": "پیامک", "bale": "پیام بله", "call": "تماس خودکار"}
 CHANNEL_WAIT_S = 2.6  # simulated: how long one channel is given before the next is tried
 LIVE_WAIT_S = 180.0  # demo «زنده»: how long a real tap on the shop's page is awaited, over all channels
-REAL_CHANNELS = ["sms", "call"]  # the demo phone is really texted, then called if the text goes untapped
-REAL_TEXT_WAIT_S = 25.0
+REAL_TEXT_WAIT_S = 20.0  # a real message's turn before the next channel is tried
+
+
+def real_channels() -> list[str]:
+    """The order a real phone is reached in: WhatsApp when the gateway is up, the text, then a call."""
+    return (["whatsapp"] if whatsapp.configured() else []) + ["sms", "call"]
 REPLY_TTL_S = 6 * 3600
 CODE_CHARS = string.ascii_letters + string.digits  # the code rides in a Kavenegar token, which refuses «_»
 HOLD_KEYS = ("hold_until", "hold_until_at", "hold_code")
@@ -103,15 +107,16 @@ def contact_prefs(shop_id: str) -> list[str]:
 
 
 def sms_text(shop_name: str, product_title: str, link: str) -> str:
-    """The short text a shop gets (by text message or Bale), worded as the Kavenegar template TEMPLATE so
-    the screen shows exactly what the demo phone receives."""
+    """The short text a shop gets (by text message, WhatsApp or Bale), worded as the Kavenegar template
+    TEMPLATE so the screen shows what the phone receives. Signed with the account's own brand: Kavenegar
+    turned down «هوش مصنوعی ترب» because a template's brand must match the account's domain (lemonai.ir)."""
     return (f"فروشگاه {kavenegar.fit(shop_name, 5)}\nیک مشتری نزدیک شما این کالا را می‌خواهد: "
-            f"{kavenegar.fit(product_title, 8)}\nموجود دارید؟ جواب با یک لمس:\n{link}\nهوش مصنوعی ترب")
+            f"{kavenegar.fit(product_title, 8)}\nموجود دارید؟ جواب با یک لمس:\n{link}\nهوش مصنوعی لمون")
 
 
 def call_text(shop_name: str, product_title: str) -> str:
     """What the automated call reads out: it only points to the text, since a call cannot take the answer."""
-    return (f"سلام، وقت بخیر. از هوش مصنوعی ترب تماس می‌گیریم. یک مشتری نزدیک فروشگاه {kavenegar.fit(shop_name, 5)}، "
+    return (f"سلام، وقت بخیر. از هوش مصنوعی لمون تماس می‌گیریم. یک مشتری نزدیک فروشگاه {kavenegar.fit(shop_name, 5)}، "
             f"{kavenegar.fit(product_title, 5)} را می‌خواهد. لینک جواب برایتان پیامک شد؛ "
             "با یک لمس روی آن بگویید موجود دارید یا نه. ممنون.")
 
@@ -353,7 +358,7 @@ async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bo
                  phone: str | None = None) -> None:
     """Ask one shop on its channels in its own order. A real tap on its answer page wins at any moment;
     otherwise the simulated answer arrives on one of the channels (usually the first), or none answers.
-    With `phone` (demo «زنده» and Kavenegar set up) the text and the call really go to that phone."""
+    With `phone` (a tester or a demo phone) WhatsApp, the text and the call really go to that phone."""
     page = _pages[tok]
     answered = plan["outcome"] not in ("no_answer", "closed")
     answer_on = 0
@@ -362,9 +367,13 @@ async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bo
     for i, ch in enumerate(channels):
         ev = {"type": "channel", "sid": item["sid"], "channel": ch, "label": CHANNELS[ch],
               "state": "calling" if ch == "call" else "sent"}
-        if phone and ch in REAL_CHANNELS:
-            note = await (kavenegar.send_text(phone, item["name"], page["product"], tok) if ch == "sms"
-                          else kavenegar.call(phone, call_text(item["name"], page["product"])))
+        if phone and ch in ("whatsapp", "sms", "call"):
+            if ch == "whatsapp":
+                note = await whatsapp.send(phone, sms_text(item["name"], page["product"], f"{whatsapp.PUBLIC_URL}/r/{tok}"))
+            elif ch == "sms":
+                note = await kavenegar.send_text(phone, item["name"], page["product"], tok)
+            else:
+                note = await kavenegar.call(phone, call_text(item["name"], page["product"]))
             ev["real"] = note is None
             if note:
                 await queue.put({"type": "error", "text": f"{CHANNELS[ch]} واقعی نرفت: {note}"})
@@ -429,7 +438,7 @@ async def run_inquiry(pid: int, sids: list[int], ctx: Ctx, forced: dict[int, str
             sh["reply_token"] = tok = _new_page(pid, t, product)
             sh["sms"] = sms_text(t["name"], product["title"], f"/r/{tok}")  # the page prefixes its own origin
             if t["sid"] in phones:
-                sh["channels"] = [{"k": c, "label": CHANNELS[c]} for c in REAL_CHANNELS]
+                sh["channels"] = [{"k": c, "label": CHANNELS[c]} for c in real_channels()]
                 sh["real"] = True
     yield start
     if not product:

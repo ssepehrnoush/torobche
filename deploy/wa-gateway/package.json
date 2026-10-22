@@ -1,0 +1,10 @@
+{
+  "name": "torobche-wa-gateway",
+  "private": true,
+  "type": "module",
+  "description": "WhatsApp gateway for Torobche's inquiry (Baileys), runs on countv behind wa.lemonai.ir",
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "pino": "^9.0.0"
+  }
+}

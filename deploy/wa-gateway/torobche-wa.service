@@ -1,0 +1,16 @@
+[Unit]
+Description=Torobche WhatsApp gateway (Baileys) behind wa.lemonai.ir
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=sadeq
+WorkingDirectory=/home/sadeq/agents/torobche-wa
+EnvironmentFile=/home/sadeq/agents/torobche-wa/.env
+ExecStart=/usr/bin/node server.mjs
+Restart=always
+RestartSec=5
+MemoryMax=600M
+
+[Install]
+WantedBy=multi-user.target

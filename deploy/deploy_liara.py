@@ -120,7 +120,7 @@ def set_envs() -> None:
     ]
     if os.environ.get("BOXAPI_MODEL"):
         variables.append({"key": "BOXAPI_MODEL", "value": os.environ["BOXAPI_MODEL"]})
-    for k in ("KAVENEGAR_API_KEY", "DEMO_SHOP_PHONES", "KAVENEGAR_TEMPLATE"):
+    for k in ("KAVENEGAR_API_KEY", "DEMO_SHOP_PHONES", "KAVENEGAR_TEMPLATE", "WAHA_URL", "WAHA_API_KEY"):
         if ENV.get(k):
             variables.append({"key": k, "value": ENV[k]})
     st, d = call("POST", "/v1/projects/update-envs", {"project": APP, "variables": variables})

@@ -1,0 +1,14 @@
+# Torobche's branded address: the answer link in the inquiry text message is torobche.lemonai.ir/r/<code>,
+# because Kavenegar only approves a template whose brand matches the account's own domain (lemonai.ir).
+# Everything is sent on to the app on Liara, path and query kept. Exact server_name wins over the
+# *.lemonai.ir desk wildcard, so desk and the client panels are untouched.
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name torobche.lemonai.ir;
+    ssl_certificate     /etc/letsencrypt/live/lemonai.ir/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/lemonai.ir/privkey.pem;
+    add_header X-Robots-Tag "noindex" always;
+    return 302 https://bazargard-map.liara.run$request_uri;
+}

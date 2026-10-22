@@ -1,7 +1,7 @@
 """Real text and call to the demo phone (demo «زنده»). Run from backend/:  python -m pytest -q"""
 import asyncio
 
-from app import contact, kavenegar
+from app import contact, kavenegar, whatsapp
 
 ITEM = {"sid": 1, "name": "موبایل تست پاساژ علاءالدین", "price": 1_000_000}
 PRODUCT = {"title": "گوشی موبایل سامسونگ مدل Galaxy A55 ظرفیت ۲۵۶ گیگابایت رم ۸ گیگابایت", "image": None}
@@ -9,9 +9,14 @@ PLAN = {"sid": 1, "outcome": "confirmed", "delay_s": 0.01, "confirmed_price": 1_
         "hold_until": None, "text": None}
 
 
-def reach(monkeypatch, on_text=None, text_note=None):
-    """Run one «زنده» shop on the demo phone with fake Kavenegar calls; returns (sent, events)."""
+def reach(monkeypatch, on_text=None, text_note=None, channels=("sms", "call"), wa_note=None):
+    """Run one «زنده» shop on the demo phone with fake WhatsApp and Kavenegar calls; returns (sent, events)."""
     sent: list[str] = []
+
+    async def fake_wa(phone, text):
+        sent.append("whatsapp")
+        assert f"{whatsapp.PUBLIC_URL}/r/" in text  # WhatsApp gets the full link
+        return wa_note
 
     async def fake_text(phone, shop, product, code):
         sent.append("sms")
@@ -23,6 +28,7 @@ def reach(monkeypatch, on_text=None, text_note=None):
         sent.append("call")
         return None
 
+    monkeypatch.setattr(whatsapp, "send", fake_wa)
     monkeypatch.setattr(kavenegar, "send_text", fake_text)
     monkeypatch.setattr(kavenegar, "call", fake_call)
     monkeypatch.setattr(contact, "REAL_TEXT_WAIT_S", 0.05)
@@ -31,7 +37,7 @@ def reach(monkeypatch, on_text=None, text_note=None):
     async def run():
         tok = contact._new_page(7, ITEM, PRODUCT)
         q: asyncio.Queue = asyncio.Queue()
-        await contact._reach(ITEM, contact.REAL_CHANNELS, dict(PLAN), tok, True, q, "09120000000")
+        await contact._reach(ITEM, list(channels), dict(PLAN), tok, True, q, "09120000000")
         return [q.get_nowait() for _ in range(q.qsize())]
 
     return sent, asyncio.run(run())
@@ -108,6 +114,20 @@ def test_a_landline_or_no_key_falls_back_to_simulation(monkeypatch):
     monkeypatch.delenv("KAVENEGAR_API_KEY")
     _, phones, note = contact.live_phones([7], None, "09120000000", None)
     assert phones == {} and "در دسترس نیست" in note
+
+
+def test_whatsapp_goes_first_and_a_number_without_whatsapp_moves_on(monkeypatch):
+    sent, events = reach(monkeypatch, channels=("whatsapp", "sms", "call"), wa_note="این شماره واتساپ ندارد")
+    assert sent == ["whatsapp", "sms", "call"]
+    assert any(e["type"] == "error" and "واتساپ ندارد" in e["text"] for e in events)
+
+
+def test_real_channels_put_whatsapp_first_only_when_the_gateway_is_set(monkeypatch):
+    monkeypatch.delenv("WAHA_URL", raising=False)
+    assert contact.real_channels() == ["sms", "call"]
+    monkeypatch.setenv("WAHA_URL", "https://wa.example")
+    monkeypatch.setenv("WAHA_API_KEY", "k")
+    assert contact.real_channels() == ["whatsapp", "sms", "call"]
 
 
 def test_daily_cap_stops_before_any_request(monkeypatch):

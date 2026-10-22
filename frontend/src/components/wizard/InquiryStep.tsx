@@ -17,8 +17,8 @@ const OUTCOME: Record<Reply["outcome"], { label: string; tone: string }> = {
   closed: { label: "بسته بود", tone: "gray" },
 };
 const SCENARIOS: [string, string][] = [["", "خودکار"], ["live", "زنده"], ["confirmed", "موجود"], ["price_changed", "تغییر قیمت"], ["out_of_stock", "ناموجود"], ["no_answer", "بی‌پاسخ"]];
-const VIA: Record<string, string> = { sms: "پیامک", bale: "بله", call: "تماس خودکار" };
-const CHAN_ICON: Record<string, string> = { sms: "chat", bale: "send", call: "phone" };
+const VIA: Record<string, string> = { whatsapp: "واتساپ", sms: "پیامک", bale: "بله", call: "تماس خودکار" };
+const CHAN_ICON: Record<string, string> = { whatsapp: "chat", sms: "chat", bale: "send", call: "phone" };
 type Chan = { channel: string; label: string; state: "sent" | "calling" | "no_answer"; real?: boolean };
 
 /* A tester can play the first shop on their own phone; the number is remembered on this device only. */
@@ -232,7 +232,7 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
                 placeholder="0912 345 6789" aria-label="شماره موبایل خودت" />
               {tester.trim() && !isMobile(tester) && <span className="red-txt small">این شمارهٔ موبایل ایران نیست</span>}
               <p className="meta">
-                یه پیامک با لینک جواب، و اگه تا ۲۵ ثانیه جواب ندادی یه تماس خودکار از طرف «هوش مصنوعی ترب» به این شماره می‌آد.
+                یه پیام واتساپ و یه پیامک با لینک جواب، و اگه جواب ندادی یه تماس خودکار از طرف «هوش مصنوعی لمون» به این شماره می‌آد.
                 شماره فقط برای همین استعلام استفاده می‌شه و هر شماره روزی حداکثر دو بار.
               </p>
             </div>
