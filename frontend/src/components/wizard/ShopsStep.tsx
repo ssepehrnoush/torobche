@@ -1,10 +1,10 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { api } from "../../api";
-import { fa, short, toman } from "../../fmt";
+import { fa, short, shortPlace, toman } from "../../fmt";
 import { Icon } from "../../icons";
-import type { Authenticity, Ctx, GenShops, ShopOffer, ShopsResult } from "../../types";
+import type { Authenticity, Ctx, GenShops, ShopOffer, ShopsResult, TravelMode } from "../../types";
 import { activeFilters } from "../ContextBar";
-import { AuthBadge, OpenText, TravelInline } from "../bits";
+import { AuthBadge, OpenText, PriceAge, TravelInline } from "../bits";
 import { Img } from "../Products";
 import { GenBadge } from "./GenStep";
 import { StepHead, WizFoot } from "./Shell";
@@ -17,13 +17,15 @@ const MAX_SEL = 5;
     Generative UI: the model also decides what opens the screen above the list (the one shop it recommends,
     a map with prices, a cheaper shop a little further, or nothing); the list shows at once, the layout
     joins when it is ready, so nobody waits on the model. */
-export function ShopsStep({ pid, ctx, setCtx, picks, need, onBack, onAsk, onGo, onOpenShop, onDetails }: {
+export function ShopsStep({ pid, ctx, setCtx, picks, need, onBack, onAsk, onGo, onOpenShop, onDetails, onFilters, onPlace }: {
   pid: number;
   ctx: Ctx;
   setCtx: (c: Ctx) => void;
   picks: { sid: number; why: string }[];
   need?: string;
   onBack: () => void;
+  onFilters?: () => void;
+  onPlace?: () => void;
   onAsk: (sids: number[]) => void;
   onGo: (sids: number[]) => void;
   onOpenShop: (sid: number, auth?: Authenticity) => void;
@@ -92,6 +94,8 @@ export function ShopsStep({ pid, ctx, setCtx, picks, need, onBack, onAsk, onGo, 
         <span className="linkbtn">مشخصات</span>
       </button>
 
+      {onFilters && onPlace && <CondBar ctx={ctx} setCtx={setCtx} onFilters={onFilters} onPlace={onPlace} />}
+
       {layout && data && near.length > 0 && (
         <GenLayout layout={layout} near={near} ctx={ctx} bargain={bargain} sel={sel} onToggle={toggle}
           onAsk={onAsk} onGo={onGo} onOpenShop={onOpenShop} />
@@ -135,6 +139,54 @@ export function ShopsStep({ pid, ctx, setCtx, picks, need, onBack, onAsk, onGo, 
   );
 }
 
+const MODES: [TravelMode, string, string][] = [["walk", "پیاده", "walk"], ["car", "با ماشین", "car"], ["transit", "مترو و اتوبوس", "train"]];
+const MINUTES = [10, 20, 30, 45, 60];
+
+/** The search's conditions, changeable right where the results are: the list follows each tap, no going back.
+    Place opens the map page and returns here; range opens its own two rows; the rest are one-tap switches. */
+function CondBar({ ctx, setCtx, onFilters, onPlace }: { ctx: Ctx; setCtx: (c: Ctx) => void; onFilters: () => void; onPlace: () => void }) {
+  const [range, setRange] = useState(false);
+  const mode = MODES.find((m) => m[0] === ctx.travel_mode) ?? MODES[0];
+  const flip = (k: "installments_only" | "open_only") => setCtx({ ...ctx, [k]: !ctx[k] });
+  const original = ctx.originality === "original_only";
+  const more = (ctx.visit !== "now" ? 1 : 0) + (ctx.torob_pay_only ? 1 : 0);
+  return (
+    <div className="wz-cond">
+      <div className="chips nowrap" role="toolbar" aria-label="شرط‌های جستجو">
+        <button className="chip sm" onClick={onPlace}><Icon name="pin" size={14} /> {shortPlace(ctx.place)}</button>
+        <button className={"chip sm" + (range ? " on" : "")} onClick={() => setRange(!range)} aria-expanded={range}>
+          <Icon name={mode[2]} size={14} /> {ctx.range_mode === "km" ? `${fa(ctx.radius_km)} کیلومتر` : `${fa(ctx.range_minutes)} دقیقه ${mode[1]}`}
+          <Icon name="down" size={13} />
+        </button>
+        <button className={"chip sm" + (ctx.budget_max ? " on" : "")} onClick={onFilters}>{ctx.budget_max ? `تا ${short(ctx.budget_max)}` : "بودجه"}</button>
+        <button className={"chip sm" + (ctx.installments_only ? " on" : "")} onClick={() => flip("installments_only")} aria-pressed={ctx.installments_only}>قسطی</button>
+        <button className={"chip sm" + (ctx.open_only ? " on" : "")} onClick={() => flip("open_only")} aria-pressed={ctx.open_only}>فقط بازها</button>
+        <button className={"chip sm" + (original ? " on" : "")} onClick={() => setCtx({ ...ctx, originality: original ? "any" : "original_only" })} aria-pressed={original}>فقط اصل</button>
+        <button className={"chip sm" + (more ? " on" : "")} onClick={onFilters}><Icon name="filter" size={14} /> {more ? `${fa(more)} شرط دیگه` : "شرط‌های دیگه"}</button>
+      </div>
+      {range && (
+        <div className="wz-cond-pop fadein">
+          <div className="chips">
+            {MODES.map(([k, label, icon]) => (
+              <button key={k} className={"chip sm" + (ctx.travel_mode === k ? " on" : "")} onClick={() => setCtx({ ...ctx, travel_mode: k })}>
+                <Icon name={icon} size={14} /> {label}
+              </button>
+            ))}
+          </div>
+          <div className="chips">
+            {MINUTES.map((v) => (
+              <button key={v} className={"chip sm" + (ctx.range_mode === "time" && ctx.range_minutes === v ? " on" : "")}
+                onClick={() => { setCtx({ ...ctx, range_mode: "time", range_minutes: v }); setRange(false); }}>
+                تا {fa(v)} دقیقه
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Two lines only: name and price; how far and whether it is open. One tag at most. */
 function ShopRow({ i, on, cheapest, saving, onToggle, onInfo }: {
   i: ShopOffer;
@@ -154,7 +206,7 @@ function ShopRow({ i, on, cheapest, saving, onToggle, onInfo }: {
         <span className={"selbox" + (on ? " on" : "")}>{on && <Icon name="check" size={14} stroke={2.6} />}</span>
         <span className="grow wz-opt-txt">
           <span className="r1"><span className="name ellipsis">{i.name}</span><span className="amount">{i.price ? toman(i.price) : "بدون قیمت"}</span></span>
-          <span className="r3"><TravelInline t={i.travel} /><OpenText s={i.open_at_visit} />{tag}</span>
+          <span className="r3"><TravelInline t={i.travel} /><OpenText s={i.open_at_visit} /><PriceAge f={i.freshness} />{tag}</span>
         </span>
       </button>
       <button className="wz-info" onClick={onInfo} aria-label={`جزئیات ${i.name}`}><Icon name="info" size={18} /></button>
@@ -185,7 +237,7 @@ function GenLayout({ layout, near, ctx, bargain, sel, onToggle, onAsk, onGo, onO
           <span className="gen-best-tag"><Icon name="spark" size={14} /> پیشنهاد من</span>
           <button className="gen-best-main" onClick={() => onOpenShop(b.sid, b.authenticity)}>
             <span className="r1"><span className="name ellipsis">{b.name}</span><span className="amount">{b.price ? toman(b.price) : "بدون قیمت"}</span></span>
-            <span className="r3"><TravelInline t={b.travel} /><OpenText s={b.open_at_visit} /></span>
+            <span className="r3"><TravelInline t={b.travel} /><OpenText s={b.open_at_visit} /><PriceAge f={b.freshness} /></span>
             {layout.reason && <span className="gen-best-why">{layout.reason}</span>}
           </button>
           <div className="gen-best-btns">

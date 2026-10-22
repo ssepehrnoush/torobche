@@ -4,7 +4,7 @@
     python -I deploy/deploy_liara.py --create    # create the app if it does not exist (spends credit)
     python -I deploy/deploy_liara.py             # pack, upload, set envs, release, follow build logs
 
-Secrets (LIARA_API_TOKEN, BOXAPI_KEY, KAVENEGAR_API_KEY) are read from the hackathon .env and never printed.
+Secrets (LIARA_API_TOKEN, BOXAPI_KEY, OPENAI_API_KEY, KAVENEGAR_API_KEY) are read from the hackathon .env and never printed.
 The real demo text and call need KAVENEGAR_API_KEY and DEMO_SHOP_PHONES there too; without them nothing is sent.
 The build context is packed explicitly (not from .gitignore), so the dataset zip, which is not in
 git, travels with the deploy and the image builds its own SQLite database from it.
@@ -115,13 +115,14 @@ def multipart(field: str, filename: str, payload: bytes) -> tuple[bytes, str]:
 def set_envs() -> None:
     variables = [
         {"key": "LLM_PROVIDER", "value": "boxapi"},
-        {"key": "LLM_FALLBACK_PROVIDER", "value": "none"},
+        # the same model from OpenAI when BoxAPI fails or runs out of credit mid-judging
+        {"key": "LLM_FALLBACK_PROVIDER", "value": "openai" if ENV.get("OPENAI_API_KEY") else "none"},
         {"key": "BOXAPI_KEY", "value": ENV.get("BOXAPI_KEY", "")},
         {"key": "PUBLIC_URL", "value": f"https://{APP}.liara.run"},  # the answer link in the WhatsApp text
     ]
     if os.environ.get("BOXAPI_MODEL"):
         variables.append({"key": "BOXAPI_MODEL", "value": os.environ["BOXAPI_MODEL"]})
-    for k in ("KAVENEGAR_API_KEY", "DEMO_SHOP_PHONES", "KAVENEGAR_TEMPLATE", "WAHA_URL", "WAHA_API_KEY"):
+    for k in ("OPENAI_API_KEY", "KAVENEGAR_API_KEY", "DEMO_SHOP_PHONES", "KAVENEGAR_TEMPLATE", "WAHA_URL", "WAHA_API_KEY"):
         if ENV.get(k):
             variables.append({"key": k, "value": ENV[k]})
     st, d = call("POST", "/v1/projects/update-envs", {"project": APP, "variables": variables})

@@ -139,6 +139,7 @@ main { flex: 1; padding: 12px 12px 128px; display: flex; flex-direction: column;
 .hr { height: 1px; background: var(--hair); }
 .blue-txt { color: var(--blue); }
 .green-txt { color: var(--green); }
+.ai-txt { color: var(--ai); flex: none; }
 .red-txt { color: var(--red); }
 .amber-txt { color: var(--amber); }
 .h3 { font-size: 15px; font-weight: 800; }
@@ -221,6 +222,7 @@ main { flex: 1; padding: 12px 12px 128px; display: flex; flex-direction: column;
 .dot.green { background: var(--open); } .dot.amber { background: #f59e0b; } .dot.red { background: var(--brand); } .dot.gray { background: var(--faint); }
 .open-txt { color: var(--open); font-weight: 700; }
 .closed-txt { color: var(--red); font-weight: 700; }
+.price-old { color: var(--amber); font-weight: 700; }
 .travel-inline { display: inline-flex; align-items: center; gap: 4px; }
 .travel-inline svg { color: var(--faint); }
 .line-dot { font-style: normal; display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; color: #fff; font-size: 10.5px; font-weight: 800; margin-right: 2px; }

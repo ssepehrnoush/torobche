@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { fa, metroColor, toman } from "../fmt";
 import { Icon } from "../icons";
-import type { Authenticity, Bargain, Leg, OpenState, Travel } from "../types";
+import type { Authenticity, Bargain, Freshness, Leg, OpenState, Travel } from "../types";
 
 export const MODE_ICON: Record<string, string> = { walk: "walk", car: "car", transit: "train", metro: "train", taxi: "car", transfer: "refresh" };
 
@@ -10,6 +10,13 @@ export function OpenText({ s }: { s: OpenState }) {
   if (s.state === "open") return <span className="open-txt">{s.closes_at ? `باز تا ${s.closes_at}` : "باز"}</span>;
   if (s.state === "closed") return <span className="closed-txt">{s.opens_at ? `بسته، باز می‌شود ${s.opens_at}` : "بسته"}</span>;
   return <span className="muted">ساعت کاری ثبت نشده</span>;
+}
+
+/** How old the registered price is, short enough for a list row: «قیمت ۳ روز پیش», old ones in amber.
+    The registered price is never the confirmed one; that comes only from asking the shop. */
+export function PriceAge({ f }: { f?: Freshness }) {
+  if (!f || f.days == null) return <span className="muted">زمان ثبت قیمت نامعلوم</span>;
+  return <span className={f.tier === "fresh" ? "muted" : "price-old"} title={f.label}>{f.days === 0 ? "قیمت امروز" : `قیمت ${fa(f.days)} روز پیش`}</span>;
 }
 
 /** One short travel line for a list row: "۴۶ دقیقه · خط ۱" for metro, "۱۵ دقیقه پیاده", "۱۲ دقیقه با ماشین". */

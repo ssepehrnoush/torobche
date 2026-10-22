@@ -67,6 +67,13 @@ def health():
     return {"ok": True, "shops": n["s"], "products": n["p"], "offers": n["o"], "llm": llm.describe()}
 
 
+@app.get("/api/llm/check")
+async def llm_check(deep: bool = False):
+    """Which AI providers this server can reach right now (BoxAPI first, the OpenAI backup next); deep=1 asks each
+    for a five-token reply, because a provider can list its models from a country it refuses to answer."""
+    return {"providers": await llm.check_providers(deep)}
+
+
 @app.get("/api/meta")
 def meta():
     m = db.meta()

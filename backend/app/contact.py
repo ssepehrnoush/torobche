@@ -93,17 +93,16 @@ def call_script(product_title: str, price: int | None) -> list[str]:
     ]
 
 
+# What shops pick in the seller panel: one, two or all three of WhatsApp, text and automated call, in their order.
+PREFS = ((0.25, ["whatsapp", "sms", "call"]), (0.50, ["sms", "call"]), (0.70, ["whatsapp", "sms"]),
+         (0.85, ["sms"]), (0.93, ["whatsapp"]), (1.01, ["call", "sms"]))
+
+
 def contact_prefs(shop_id: str) -> list[str]:
     """The channels a shop wants to be asked on, in its order. In the real product the shop picks them in
     its Torob seller panel; the dataset has none, so they are simulated (fixed per shop, labelled in the UI)."""
     r = int(hashlib.sha256(f"prefs|{shop_id}".encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
-    if r < 0.50:
-        return ["sms", "call"]
-    if r < 0.75:
-        return ["bale", "sms"]
-    if r < 0.90:
-        return ["sms"]
-    return ["call", "sms"]
+    return next(list(p) for cut, p in PREFS if r < cut)
 
 
 def sms_text(shop_name: str, product_title: str, link: str) -> str:
@@ -351,7 +350,7 @@ def prepare(pid: int, sids: list[int], ctx: Ctx) -> tuple[dict | None, dict, lis
              "call_script": call_script(product["title"], targets[0]["price"]),
              "simulated": True,
              "notice": "شماره‌های دادهٔ هکاتون ساختگی‌اند؛ پاسخ فروشگاه‌ها شبیه‌سازی می‌شود. در نسخهٔ واقعی هر فروشگاه در پنل فروشندهٔ ترب "
-                       "انتخاب می‌کند از چه راهی (پیامک، بله یا تماس خودکار) و به چه ترتیبی استعلام بگیرد."}
+                       "گفته با کدام راه‌ها (یکی، دو تا یا هر سه از واتساپ، پیامک و تماس خودکار) و به چه ترتیبی از او بپرسند."}
     return product, by_sid, targets, start
 
 

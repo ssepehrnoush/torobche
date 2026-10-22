@@ -23,7 +23,7 @@ import "./wizard.css";
    widget that fits. Shops, the inquiry and the visit plan stay the fixed wizard's own steps. */
 type Step = "need" | "gen" | "shops" | "ask" | "go";
 const ORDER: Step[] = ["need", "gen", "shops", "ask", "go"];
-type SheetState = null | { kind: "shop"; sid: number; auth?: Authenticity } | { kind: "product"; pid: number } | { kind: "about" } | { kind: "filters" };
+type SheetState = null | { kind: "shop"; sid: number; auth?: Authenticity } | { kind: "product"; pid: number } | { kind: "about" } | { kind: "filters" } | { kind: "place" };
 const TRAVEL_FA: Record<string, string> = { walk: "پیاده", car: "با ماشین", transit: "با مترو و اتوبوس" };
 
 const DEFAULT_CTX: Ctx = {
@@ -284,9 +284,9 @@ export default function Wizard() {
       <DesktopAside />
       <header className="top">
         <div className="bar">
-          <div className="wordmark" aria-label="ترب، خرید حضوری">
+          <div className="wordmark" aria-label="تربچه، خرید حضوری">
             <RadishLogo size={28} />
-            <b>ترب</b>
+            <b>تربچه</b>
             <i className="sep" />
             <span>خرید حضوری</span>
             <span className="gen-tag">صفحه‌ساز</span>
@@ -335,11 +335,17 @@ export default function Wizard() {
             onIntent={(a) => prefetch(genIdx, a)} onPick={openShops} />
         ))}
 
-        {step === "shops" && pid != null && (
+        {step === "shops" && pid != null && (sheet?.kind === "place" ? (
+          // the same «کجا» page, opened from the shops screen's conditions; «ادامه» brings the list back for the new place
+          // keeps the trip settings already chosen on the shops screen, unlike a first pick
+          <WhereStep ctx={ctx} placed={placed} toast={toast} onBack={() => setSheet(null)} onNext={() => setSheet(null)}
+            pickPlace={(p) => { setPlaced(true); setCtx({ ...ctxRef.current, lat: p.lat, lon: p.lon, place: p.label }); }} />
+        ) : (
           <ShopsStep key={pid} pid={pid} ctx={ctx} setCtx={setCtx} picks={[]} need={need} onBack={goBack} onOpenShop={openShop}
             onAsk={(sids) => startInquiry(pid, sids)} onGo={(sids) => startVisit(pid, sids, null, false)}
-            onDetails={() => setSheet({ kind: "product", pid })} />
-        )}
+            onDetails={() => setSheet({ kind: "product", pid })}
+            onFilters={() => setSheet({ kind: "filters" })} onPlace={() => setSheet({ kind: "place" })} />
+        ))}
         {step === "ask" && inq && (
           <InquiryStep key={`${inq.pid}:${inq.sids.join(",")}`} st={inq} setSt={(f) => setInq((s) => (s ? f(s) : s))} ctx={ctx} demo={demo} toast={toast}
             onBack={goBack} onOpenShop={(sid) => openShop(sid)}

@@ -55,7 +55,7 @@ export default function ShopReply({ token }: { token: string }) {
     <div className="shopreply">
       <header className="sr-head">
         <RadishLogo size={28} />
-        <b>ترب</b>
+        <b>تربچه</b>
         <i className="sep" />
         <span>استعلام مشتری</span>
       </header>

@@ -30,7 +30,8 @@ _load_dotenv()
 
 PROVIDERS = {
     # name: (base_url, api-key env var, default model)
-    # BoxAPI is an OpenAI-compatible gateway reachable from Iranian data centres (OpenAI is not).
+    # BoxAPI is the sponsor's OpenAI-compatible gateway, reachable from Iranian data centres; OpenAI answers
+    # from Liara too (checked with /api/llm/check?deep=1), so it is the backup when BoxAPI is down or out of credit.
     "openai": ("https://api.openai.com/v1", "OPENAI_API_KEY", "gpt-4.1-mini"),
     "boxapi": ("https://ai.boxapi.ir/ai/v1", "BOXAPI_KEY", "openai/gpt-4.1-mini"),
 }
@@ -64,7 +65,7 @@ def llm_endpoints() -> list[LLMEndpoint]:
     LLM_DISABLED=1 is the kill switch: no model is ever called and the app runs rule-based."""
     if os.environ.get("LLM_DISABLED", "").strip().lower() in ("1", "true", "yes"):
         return []
-    # every model call goes through the sponsor gateway BoxAPI; OpenAI only when set explicitly
+    # BoxAPI first; the backup (OpenAI on Liara) is tried when the first fails
     order = [os.environ.get("LLM_PROVIDER", "boxapi"), os.environ.get("LLM_FALLBACK_PROVIDER", "none")]
     out: list[LLMEndpoint] = []
     for name in order:

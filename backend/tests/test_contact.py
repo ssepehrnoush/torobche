@@ -152,3 +152,11 @@ def test_texts_go_only_to_demo_phones(monkeypatch):
     assert not kavenegar.enabled()
     monkeypatch.setenv("DEMO_SHOP_PHONES", "09120000000, 0935 111 2222")
     assert kavenegar.enabled() and kavenegar.demo_phones() == ["09120000000", "09351112222"]
+
+
+def test_shops_pick_one_to_three_of_whatsapp_text_and_call():
+    from collections import Counter
+    seen = Counter(tuple(contact.contact_prefs(f"shop-{i}")) for i in range(2000))
+    assert all(set(p) <= {"whatsapp", "sms", "call"} and 1 <= len(p) <= 3 for p in seen)
+    assert {len(p) for p in seen} == {1, 2, 3}
+    assert contact.contact_prefs("shop-7") == contact.contact_prefs("shop-7")  # fixed per shop

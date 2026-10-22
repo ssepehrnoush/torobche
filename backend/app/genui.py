@@ -309,6 +309,8 @@ async def shops_layout(pid: int, ctx: Ctx, need: str, budget_key: str | None = N
     """How the shops screen opens, decided by the model (a plain rule when it is slow or invalid)."""
     res = await asyncio.to_thread(shops.rank_shops_for_product, pid, ctx, "best", set())
     near = {i["sid"] for i in res["items"] if i["in_radius"]}
+    # a shop closed when the person gets there is never «پیشنهاد من» while an open one is near
+    open_near = {i["sid"] for i in res["items"] if i["in_radius"] and i["open_at_visit"]["state"] != "closed"}
     out, source = None, "rule"
     if llm.available() and res["items"]:
         try:
@@ -319,7 +321,7 @@ async def shops_layout(pid: int, ctx: Ctx, need: str, budget_key: str | None = N
                 temperature=0.2, max_tokens=300), timeout=LLM_TIMEOUT_S)
             s = json.loads(((msg.get("tool_calls") or [{}])[0].get("function") or {}).get("arguments") or "{}")
             ok = s.get("layout") in SHOP_LAYOUTS and s.get("title")
-            ok = ok and (s["layout"] != "best" or s.get("best_sid") in near)
+            ok = ok and (s["layout"] != "best" or s.get("best_sid") in (open_near or near))
             ok = ok and (s["layout"] != "bargain" or bool(res.get("bargain")))
             ok = ok and (s["layout"] != "expand" or not near)
             ok = ok and (s["layout"] != "map" or len(near) >= 3)

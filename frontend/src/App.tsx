@@ -338,9 +338,9 @@ export default function App() {
       <DesktopAside />
       <header className="top">
         <div className="bar">
-          <div className="wordmark" aria-label="ترب، خرید حضوری">
+          <div className="wordmark" aria-label="تربچه، خرید حضوری">
             <RadishLogo size={28} />
-            <b>ترب</b>
+            <b>تربچه</b>
             <i className="sep" />
             <span>خرید حضوری</span>
           </div>
