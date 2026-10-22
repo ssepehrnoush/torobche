@@ -122,6 +122,15 @@ def test_whatsapp_goes_first_and_a_number_without_whatsapp_moves_on(monkeypatch)
     assert any(e["type"] == "error" and "واتساپ ندارد" in e["text"] for e in events)
 
 
+def test_a_channel_that_never_left_does_not_hold_up_the_next(monkeypatch):
+    import time
+    monkeypatch.setattr(contact, "REAL_TEXT_WAIT_S", 2.0)  # long enough to notice if it were waited
+    t = time.monotonic()
+    sent, events = reach(monkeypatch, channels=("whatsapp", "sms", "call"), wa_note="واتساپ الان در دسترس نیست",
+                         on_text=lambda code: contact.submit_reply(code, "confirmed", None))
+    assert sent == ["whatsapp", "sms"] and time.monotonic() - t < 1.5
+
+
 def test_real_channels_put_whatsapp_first_only_when_the_gateway_is_set(monkeypatch):
     monkeypatch.delenv("WAHA_URL", raising=False)
     assert contact.real_channels() == ["sms", "call"]

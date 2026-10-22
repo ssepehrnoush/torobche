@@ -367,6 +367,7 @@ async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bo
     for i, ch in enumerate(channels):
         ev = {"type": "channel", "sid": item["sid"], "channel": ch, "label": CHANNELS[ch],
               "state": "calling" if ch == "call" else "sent"}
+        note = None
         if phone and ch in ("whatsapp", "sms", "call"):
             if ch == "whatsapp":
                 note = await whatsapp.send(phone, sms_text(item["name"], page["product"], f"{whatsapp.PUBLIC_URL}/r/{tok}"))
@@ -378,7 +379,9 @@ async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bo
             if note:
                 await queue.put({"type": "error", "text": f"{CHANNELS[ch]} واقعی نرفت: {note}"})
         await queue.put(ev)
-        if live:
+        if live and phone and note and i < len(channels) - 1:
+            wait = 0.05  # this channel never left; the next one goes at once
+        elif live:
             wait = REAL_TEXT_WAIT_S if phone and i < len(channels) - 1 else LIVE_WAIT_S / len(channels)
         elif plan["outcome"] == "closed":
             wait = 1.0
