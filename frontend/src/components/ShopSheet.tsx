@@ -106,7 +106,7 @@ export function ShopSheet({ sid, pid, ctx, auth, onClose, onInquiry, onVisit, on
             </Fold>
             <Fold title="تماس و مسیریابی" open={!!open.contact} onToggle={() => flip("contact")}>
               <div className="navbtns">
-                <button className="btn ghost sm" onClick={() => nav.open(d.nav)}><Icon name="nav" size={15} /> مسیریابی{nav.appName ? ` با ${nav.appName}` : ""}</button>
+                <button className="btn ghost sm" onClick={() => nav.open(d.nav)}><Icon name="nav" size={15} /> مسیریابی</button>
               </div>
               <div className="row wrap" style={{ gap: 6 }}>
                 {d.phone && <a className="btn ghost sm" href={`tel:${d.phone}`}><Icon name="phone" size={15} /> {fa(d.phone)}</a>}
@@ -135,7 +135,6 @@ export function ShopSheet({ sid, pid, ctx, auth, onClose, onInquiry, onVisit, on
         </>
       )}
     </Sheet>
-    {nav.sheet}
     </>
   );
 }

@@ -85,12 +85,12 @@ export function VisitView({ pid, sids, confirmed, ctx, onOpenShop, toast }: {
                 {s.confirmed_price ? <b className="green-txt">تأییدشده {toman(s.confirmed_price)}</b>
                   : s.price ? <span className="meta">ثبت‌شده {toman(s.price)}</span> : null}
               </div>
-              {s.hold_until && <div className="meta blue-txt">تا {s.hold_until} برایتان نگه می‌دارند</div>}
+              {s.hold_until && <div className="meta blue-txt">تا {s.hold_until} برایتان نگه می‌دارند{s.hold_code ? ` · کد رزرو ${fa(s.hold_code)}` : ""}</div>}
               <div className="meta">{s.leg.label}</div>
               {s.leg.legs && s.leg.legs.length > 1 && <MetroStrip legs={s.leg.legs} />}
               {s.guide.length > 1 && <div className="meta">{s.guide.slice(1, 3).map((g) => g.text.split(" (")[0]).join("، ")}</div>}
               <div className="navbtns">
-                <button className="btn ghost sm" onClick={() => nav.open(s.nav)}><Icon name="nav" size={15} /> مسیریابی{nav.appName ? ` با ${nav.appName}` : ""}</button>
+                <button className="btn ghost sm" onClick={() => nav.open(s.nav)}><Icon name="nav" size={15} /> مسیریابی</button>
               </div>
             </div>
           </div>
@@ -124,7 +124,6 @@ export function VisitView({ pid, sids, confirmed, ctx, onOpenShop, toast }: {
       )}
 
       {stroll != null && pid != null && <StrollSheet pid={pid} sid={stroll} ctx={ctx} onClose={() => setStroll(null)} onOpenShop={onOpenShop} />}
-      {nav.sheet}
     </>
   );
 }
@@ -175,7 +174,6 @@ function StrollSheet({ pid, sid, ctx, onClose, onOpenShop }: { pid: number; sid:
         </>
       )}
     </Sheet>
-    {nav.sheet}
     </>
   );
 }

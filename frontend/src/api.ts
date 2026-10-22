@@ -65,8 +65,8 @@ export const api = {
     post<import("./types").VisitPlan>("/api/visit", { pid, sids, ctx, confirmed }),
   stroll: (pid: number, sid: number, ctx: Ctx) => post<import("./types").Stroll>("/api/stroll", { pid, sid, ctx }),
   replyPage: (token: string) => get<import("./types").ShopReplyPage>(`/api/reply/${encodeURIComponent(token)}`),
-  reply: (token: string, outcome: string, price: number | null) =>
-    post<{ ok: boolean; answer?: import("./types").ShopAnswer; error?: string }>(`/api/reply/${encodeURIComponent(token)}`, { outcome, price }),
+  reply: (token: string, outcome: string, price: number | null, hold_h: number | null = null) =>
+    post<{ ok: boolean; answer?: import("./types").ShopAnswer; error?: string }>(`/api/reply/${encodeURIComponent(token)}`, { outcome, price, hold_h }),
   places: async (q: string, signal?: AbortSignal) => {
     const r = await fetch(`/api/places?q=${encodeURIComponent(q)}`, { signal });
     if (!r.ok) throw new Error(`/api/places ${r.status}`);

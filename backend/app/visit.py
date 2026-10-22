@@ -1,7 +1,7 @@
 """Visit plan: order the chosen shops into one trip and check each is open when the user arrives."""
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from . import shops, streets
 from .models import Ctx
@@ -45,6 +45,9 @@ def plan_visit(pid: int | None, sids: list[int], ctx: Ctx, confirmed: dict[int, 
             warnings.append(f"{nxt.name} کمی بعد از رسیدن شما بسته می‌شود")
         o = offers.get(nxt.sid) or {}
         conf = (confirmed or {}).get(nxt.sid) or {}
+        if conf.get("hold_until_at") and datetime.fromisoformat(conf["hold_until_at"]) < t:
+            warnings.append(f"{nxt.name} تا {conf['hold_until']} نگه می‌دارد ولی حدود {fa_digits(t.strftime('%H:%M'))} می‌رسید؛ "
+                            "زودتر بروید یا این مغازه را اول بگذارید")
         guide = shops.mall_guide(nxt)
         stops.append({
             "sid": nxt.sid, "name": nxt.name, "lat": nxt.lat, "lon": nxt.lon, "mall_name": nxt.mall_name,
@@ -52,6 +55,7 @@ def plan_visit(pid: int | None, sids: list[int], ctx: Ctx, confirmed: dict[int, 
             "leg": {"km": round(km, 2), **tr}, "arrive": t.isoformat(), "arrive_label": fa_digits(t.strftime("%H:%M")),
             "open": st, "price": o.get("price_toman") if o.get("price_ok") else None,
             "confirmed_price": conf.get("confirmed_price"), "hold_until": conf.get("hold_until"),
+            "hold_until_at": conf.get("hold_until_at"), "hold_code": conf.get("hold_code"),
             "guide": guide["steps"][:3] if guide else [], "nav": shops.nav_links(nxt.lat, nxt.lon, nxt.name, (lat, lon), tr["mode"]),
             "installments": nxt.installments,
         })

@@ -68,6 +68,18 @@ def test_a_tap_on_the_texted_page_stops_the_call(monkeypatch):
     assert events[-1]["type"] == "reply" and events[-1]["real"] and events[-1]["outcome"] == "out_of_stock"
 
 
+def test_a_shop_that_keeps_the_item_gives_the_customer_a_reservation_code(monkeypatch):
+    sent, events = reach(monkeypatch, on_text=lambda code: contact.submit_reply(code, "confirmed", None, 2))
+    r = events[-1]
+    assert r["in_stock"] and r["real"] and len(r["hold_code"]) == 4 and r["hold_code"].isdigit()
+    assert r["hold_until_at"] and r["hold_until"] in r["text"]
+
+
+def test_out_of_stock_never_holds(monkeypatch):
+    sent, events = reach(monkeypatch, on_text=lambda code: contact.submit_reply(code, "out_of_stock", None, 2))
+    assert events[-1]["hold_code"] is None
+
+
 def test_a_refused_text_is_shown_and_the_call_still_goes(monkeypatch):
     sent, events = reach(monkeypatch, text_note=kavenegar.ERRORS[424])
     assert sent == ["sms", "call"]

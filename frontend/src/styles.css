@@ -585,3 +585,9 @@ input, textarea, select { font-size: 16px; }
 .sr-done b { font-size: 17px; color: var(--ink); }
 .sr-done span { color: var(--ink-2); }
 .sr-done.off { background: var(--surface); color: var(--muted); }
+.sr-keep { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sr-keep .meta { flex-basis: 100%; font-size: 13.5px; color: var(--ink-2); }
+.sr-keep .chip { background: #fff; box-shadow: inset 0 0 0 1.5px var(--chip-line); }
+.sr-keep .chip.on { background: var(--blue-soft); box-shadow: inset 0 0 0 2px var(--blue-2); }
+.sr-done .sr-code { margin-top: 6px; background: #fff; border-radius: 12px; padding: 8px 12px; color: var(--ink); }
+.sr-done .sr-code b { font-size: 20px; letter-spacing: 2px; }

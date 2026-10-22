@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import { RadishLogo } from "./components/Logo";
-import { num, parseToman, toman } from "./fmt";
+import { fa, num, parseToman, toman } from "./fmt";
 import { Icon } from "./icons";
 import type { ShopAnswer, ShopReplyPage } from "./types";
 
@@ -29,6 +29,7 @@ export default function ShopReply({ token }: { token: string }) {
   const [priceText, setPriceText] = useState("");
   const [busy, setBusy] = useState(false);
   const [late, setLate] = useState(false);
+  const [keep, setKeep] = useState(2); // hours the item is held for the customer; 0 = not held
 
   useEffect(() => {
     api.replyPage(token).then(setPage).catch(() => setGone(true));
@@ -38,7 +39,7 @@ export default function ShopReply({ token }: { token: string }) {
     if (!page || busy) return;
     setBusy(true);
     try {
-      const r = await api.reply(token, outcome, price);
+      const r = await api.reply(token, outcome, price, outcome === "out_of_stock" ? null : keep || null);
       if (r.answer) {
         setLate(!r.ok);
         setPage({ ...page, answer: r.answer });
@@ -76,6 +77,12 @@ export default function ShopReply({ token }: { token: string }) {
           {!page.answer ? (
             <>
               <h1 className="sr-q">یه مشتری نزدیکتونه و همین رو می‌خواد. الان موجود دارید؟</h1>
+              <div className="sr-keep" role="radiogroup" aria-label="نگه داشتن برای مشتری">
+                <span className="meta">اگه داری، براش نگه می‌داری؟</span>
+                {[[1, "۱ ساعت"], [2, "۲ ساعت"], [0, "نه"]].map(([h, l]) => (
+                  <button key={h} className={"chip" + (keep === h ? " on" : "")} role="radio" aria-checked={keep === h} onClick={() => setKeep(h as number)}>{l}</button>
+                ))}
+              </div>
               <div className="stack" style={{ gap: 10 }}>
                 <button className="btn block sr-yes" disabled={busy} onClick={() => send("confirmed")}>
                   <Icon name="check" size={19} stroke={2.4} /> موجوده، با همین قیمت
@@ -110,6 +117,9 @@ export default function ShopReply({ token }: { token: string }) {
                     {page.answer.outcome === "price_changed" && page.answer.price ? ` ${toman(page.answer.price)}` : ""}
                     {page.answer.at ? `، ساعت ${page.answer.at}` : ""}
                   </span>
+                  {page.answer.hold_code && (
+                    <span className="sr-code">کد رزرو مشتری: <b>{fa(page.answer.hold_code)}</b> · تا {page.answer.hold_until} نگه دارید</span>
+                  )}
                   {!page.answer.real && <span className="meta">این جواب در دمو شبیه‌سازی شده بود.</span>}
                 </>
               )}

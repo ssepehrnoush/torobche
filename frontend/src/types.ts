@@ -182,7 +182,9 @@ export type Reply = {
   confirmed_price: number | null;
   price_delta?: number;
   in_stock: boolean | null;
-  hold_until: string | null;
+  hold_until: string | null; // «۱۵:۴۲»
+  hold_until_at?: string | null; // ISO, for the countdown
+  hold_code?: string | null; // reservation code to show at the counter
   hours_today: string | null;
   text: string | null;
   note?: string;
@@ -195,7 +197,10 @@ export type Reply = {
 
 /** A shop's own order of contact channels, and the one-tap answer page. */
 export type ContactChannel = { k: string; label: string };
-export type ShopAnswer = { outcome: "confirmed" | "price_changed" | "out_of_stock" | "no_answer"; price: number | null; real: boolean; at?: string; expired?: boolean };
+export type ShopAnswer = {
+  outcome: "confirmed" | "price_changed" | "out_of_stock" | "no_answer"; price: number | null; real: boolean; at?: string; expired?: boolean;
+  hold_until?: string | null; hold_code?: string | null;
+};
 export type ShopReplyPage = { shop: string; price: number | null; product: string; image: string | null; answer: ShopAnswer | null };
 
 export type InquiryShop = {
@@ -239,8 +244,10 @@ export type VisitStop = {
   price: number | null;
   confirmed_price: number | null;
   hold_until: string | null;
+  hold_until_at?: string | null;
+  hold_code?: string | null;
   guide: { icon: string; text: string }[];
-  nav: { neshan: string; balad: string; google: string };
+  nav: { neshan: string; balad: string; google: string; dest?: { lat: number; lon: number; name: string } };
   installments: string[];
 };
 

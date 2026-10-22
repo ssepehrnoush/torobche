@@ -298,6 +298,7 @@ async def inquiry_draft(body: InquiryIn):
 class ShopReplyIn(BaseModel):
     outcome: str
     price: int | None = Field(None, ge=0, le=100_000_000_000)
+    hold_h: int | None = Field(None, ge=0, le=12)  # hours the shop keeps the item for this customer
 
 
 @app.get("/api/reply/{token}")
@@ -312,7 +313,7 @@ async def shop_reply_page(token: str):
 @app.post("/api/reply/{token}")
 async def shop_reply(token: str, body: ShopReplyIn):
     # async on purpose: it wakes the waiting inquiry stream, which lives on the event loop
-    res = contact.submit_reply(token, body.outcome, body.price)
+    res = contact.submit_reply(token, body.outcome, body.price, body.hold_h)
     if res is None:
         raise HTTPException(404, "این لینک منقضی شده است")
     log.info("shop reply via answer page: %s %s", body.outcome, res.get("ok"))

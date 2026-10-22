@@ -81,7 +81,7 @@ export function InquiryView({ st, setSt, ctx, demo, onOpenShop, onVisit, onResta
   const shops = st.started ? st.shops : preview?.shops ?? [];
   const sum = st.summary;
   const confirmedMap: Record<number, unknown> = {};
-  for (const r of Object.values(st.replies)) if (r.in_stock) confirmedMap[r.sid] = { confirmed_price: r.confirmed_price, hold_until: r.hold_until };
+  for (const r of Object.values(st.replies)) if (r.in_stock) confirmedMap[r.sid] = { confirmed_price: r.confirmed_price, hold_until: r.hold_until, hold_until_at: r.hold_until_at, hold_code: r.hold_code };
   const nConfirmed = Object.keys(confirmedMap).length;
   const nReplies = Object.keys(st.replies).length;
 

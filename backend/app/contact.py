@@ -16,6 +16,7 @@ import random
 import secrets
 import string
 import time
+from datetime import timedelta
 from typing import AsyncIterator
 
 from . import catalog, kavenegar, llm, shops
@@ -32,6 +33,16 @@ REAL_CHANNELS = ["sms", "call"]  # the demo phone is really texted, then called 
 REAL_TEXT_WAIT_S = 25.0
 REPLY_TTL_S = 6 * 3600
 CODE_CHARS = string.ascii_letters + string.digits  # the code rides in a Kavenegar token, which refuses «_»
+HOLD_KEYS = ("hold_until", "hold_until_at", "hold_code")
+NO_HOLD = dict.fromkeys(HOLD_KEYS)
+
+
+def hold(hours: int) -> dict:
+    """A shop keeps the item for this customer: until when, and a short code to show at the counter, which
+    the shop also sees on its answer page."""
+    until = now_tehran() + timedelta(hours=hours)
+    return {"hold_until": fa_digits(until.strftime("%H:%M")), "hold_until_at": until.isoformat(),
+            "hold_code": "".join(secrets.choice(string.digits) for _ in range(4))}
 
 OUTCOMES = ("confirmed", "price_changed", "out_of_stock", "no_answer")
 ODDS = {  # by price freshness tier
@@ -127,8 +138,9 @@ def reply_page(tok: str) -> dict | None:
     return {k: p[k] for k in ("shop", "price", "product", "image", "answer")}
 
 
-def submit_reply(tok: str, outcome: str, price: int | None) -> dict | None:
-    """A tap on the shop's answer page. The first answer wins (a simulated one counts)."""
+def submit_reply(tok: str, outcome: str, price: int | None, hold_h: int | None = None) -> dict | None:
+    """A tap on the shop's answer page. The first answer wins (a simulated one counts). With `hold_h` the
+    shop also keeps the item that many hours, and the customer gets a reservation code."""
     p = _pages.get(tok)
     if not p:
         return None
@@ -137,7 +149,8 @@ def submit_reply(tok: str, outcome: str, price: int | None) -> dict | None:
     if outcome not in ("confirmed", "price_changed", "out_of_stock") or (outcome == "price_changed" and not price):
         return {"ok": False, "error": "جواب نامعتبر"}
     p["answer"] = {"outcome": outcome, "price": price if outcome == "price_changed" else p["price"], "real": True,
-                   "at": fa_digits(now_tehran().strftime("%H:%M"))}
+                   "at": fa_digits(now_tehran().strftime("%H:%M")),
+                   **(hold(hold_h) if hold_h and outcome != "out_of_stock" else NO_HOLD)}
     p["event"].set()
     return {"ok": True, "answer": p["answer"]}
 
@@ -146,8 +159,8 @@ def _real_reply(item: dict, ans: dict, via: str) -> dict:
     """The customer-side reply built from a real tap on the shop's page."""
     price = item.get("price")
     res = {"sid": item["sid"], "outcome": ans["outcome"], "delay_s": 0, "confirmed_price": None, "in_stock": None,
-           "hold_until": None, "hours_today": None, "installments": None, "authenticity_check": None,
-           "via": via, "real": True}
+           "hours_today": None, "installments": None, "authenticity_check": None,
+           "via": via, "real": True, **{k: ans.get(k) for k in HOLD_KEYS}}
     if ans["outcome"] == "out_of_stock":
         res["in_stock"] = False
         res["text"] = "مغازه‌دار از صفحهٔ جواب زد: «نداریم»."
@@ -158,6 +171,8 @@ def _real_reply(item: dict, ans: dict, via: str) -> dict:
         res["price_delta"] = (new - price) if new and price else 0
         res["text"] = ("مغازه‌دار از صفحهٔ جواب زد: «موجوده، با همین قیمت»." if ans["outcome"] == "confirmed" else
                        f"مغازه‌دار از صفحهٔ جواب زد: «موجوده، قیمت امروز {toman_fa(new)} تومان».")
+        if res["hold_until"]:
+            res["text"] += f" تا ساعت {res['hold_until']} برایتان نگه می‌دارد."
     return res
 
 
@@ -186,8 +201,8 @@ def simulate_reply(item: dict, s: shops.Shop, pid: int, forced: str | None = Non
             outcome = outcome or "confirmed"
     price = item.get("price")
     res = {"sid": s.sid, "outcome": outcome, "delay_s": round(1.2 + rng.random() * 3.2, 1),
-           "confirmed_price": None, "in_stock": None, "hold_until": None, "hours_today": None, "text": None,
-           "installments": None, "authenticity_check": None}
+           "confirmed_price": None, "in_stock": None, "hours_today": None, "text": None,
+           "installments": None, "authenticity_check": None, **NO_HOLD}
     close = item["open_now"].get("closes_at")
     if outcome == "closed":
         res["delay_s"] = 2.0
@@ -224,7 +239,7 @@ def simulate_reply(item: dict, s: shops.Shop, pid: int, forced: str | None = Non
         res["text"] = (f"سلام، بله موجوده و قیمت همونه، {toman_fa(price)} تومن." if price
                        else "سلام، بله موجوده. قیمت رو حضوری می‌گیم.") + f" {hours_txt}."
     hold_h = rng.choice([2, 3, 4])
-    res["hold_until"] = f"{fa_digits(hold_h)} ساعت"
+    res.update(hold(hold_h))
     res["text"] += f" اگه تا {fa_digits(hold_h)} ساعت دیگه بیاید براتون نگه می‌داریم."
     if s.installments:
         res["installments"] = "، ".join(s.installments)
@@ -368,12 +383,12 @@ async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bo
             pass
         if not live and answered and i == answer_on:
             page["answer"] = {"outcome": plan["outcome"], "price": plan["confirmed_price"], "real": False,
-                              "at": fa_digits(now_tehran().strftime("%H:%M"))}
+                              "at": fa_digits(now_tehran().strftime("%H:%M")), **{k: plan.get(k) for k in HOLD_KEYS}}
             await queue.put({"type": "reply", **plan, "via": ch})
             return
         await queue.put({"type": "channel", "sid": item["sid"], "channel": ch, "label": CHANNELS[ch], "state": "no_answer"})
     if live:  # nobody tapped in time
-        plan = {**plan, "outcome": "no_answer", "in_stock": None, "confirmed_price": None, "hold_until": None,
+        plan = {**plan, "outcome": "no_answer", "in_stock": None, "confirmed_price": None, **NO_HOLD,
                 "text": None, "note": "در مهلتِ دمو کسی از صفحهٔ جواب پاسخ نداد."}
     page["answer"] = page["answer"] or {"outcome": "no_answer", "price": None, "real": False, "expired": True}
     await queue.put({"type": "reply", **plan})

@@ -511,16 +511,20 @@ _GOOGLE_MODE = {"walk": "walking", "car": "driving", "transit": "transit"}
 
 def nav_links(lat: float, lon: float, name: str, origin: tuple[float, float] | None = None, mode: str = "car") -> dict:
     """Links that open the route from the user's point (or the previous stop) straight away, so nobody has
-    to tap «directions» again in the map app. Without an origin they just show the place."""
+    to tap «directions» again in the map app. Without an origin they just show the place. `dest` lets the
+    phone offer its own «open with» list of map apps (a geo: link)."""
+    dest = {"lat": round(lat, 6), "lon": round(lon, 6), "name": name}
     if origin is None:
         return {
             "neshan": f"https://neshan.org/maps/@{lat},{lon},17z,0p",
             "balad": f"https://balad.ir/location?latitude={lat}&longitude={lon}&zoom=17",
             "google": f"https://www.google.com/maps/search/?api=1&query={lat},{lon}",
+            "dest": dest,
         }
     o_lat, o_lon = round(origin[0], 6), round(origin[1], 6)
     lat, lon = round(lat, 6), round(lon, 6)
     return {
+        "dest": dest,
         "neshan": f"https://neshan.org/maps/routing/{_NESHAN_MODE.get(mode, 'car')}"
                   f"/origin/{o_lat},{o_lon}/destination/{lat},{lon}",
         # Balad keeps no travel mode in the link; it opens on driving with the other modes one tap away

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, stream } from "../../api";
 import { fa, toman } from "../../fmt";
 import { Icon } from "../../icons";
+import { askToNotify, notify } from "../../notify";
 import type { Ctx, InquiryShop, InquirySummary, Reply } from "../../types";
 import { AiNote } from "../bits";
 import type { InquiryState } from "../InquiryView";
@@ -17,22 +18,25 @@ const OUTCOME: Record<Reply["outcome"], { label: string; tone: string }> = {
 };
 const SCENARIOS: [string, string][] = [["", "خودکار"], ["live", "زنده"], ["confirmed", "موجود"], ["price_changed", "تغییر قیمت"], ["out_of_stock", "ناموجود"], ["no_answer", "بی‌پاسخ"]];
 const VIA: Record<string, string> = { sms: "پیامک", bale: "بله", call: "تماس خودکار" };
-type Chan = { label: string; state: "sent" | "calling" | "no_answer"; real?: boolean };
+const CHAN_ICON: Record<string, string> = { sms: "chat", bale: "send", call: "phone" };
+type Chan = { channel: string; label: string; state: "sent" | "calling" | "no_answer"; real?: boolean };
 
-/** One quiet line per shop: its own order of channels before sending, the live channel while asking, how it answered after. */
-function chanLine(s: InquiryShop, started: boolean, c: Chan | undefined, r: Reply | undefined): string | null {
-  if (r) {
-    if (r.via) return `جواب از ${VIA[r.via] ?? r.via}${r.real ? "، با یک لمس روی صفحهٔ جواب" : ""}`;
-    return s.channels?.length ? `امتحان شد: ${s.channels.map((x) => x.label).join("، بعد ")}` : null;
-  }
-  if (!started) return s.channels?.length ? `راه تماس به خواست خودش: ${s.channels.map((x) => x.label).join("، بعد ")}` : null;
-  if (!c) return null;
-  if (c.state === "no_answer") return `${c.label} جواب نداد`;
+/** One system line in a shop's thread: a channel tried, ringing, or left unanswered. */
+function ChanLine({ c, live }: { c: Chan; live: boolean }) {
   const label = c.real ? `${c.label} واقعی به گوشی دمو` : c.label;
-  return c.state === "calling" ? `${label}، در حال زنگ زدن…` : `${label} رفت، منتظر جواب…`;
+  const text = c.state === "no_answer" ? `${c.label} جواب نداد`
+    : c.state === "calling" ? (live ? `${label}، در حال زنگ زدن…` : `${label}، وصل شد`) : `${label} رفت`;
+  return (
+    <div className={"wz-sys" + (c.state === "no_answer" ? " off" : "") + (live && c.state === "calling" ? " ringing" : "")}>
+      <Icon name={CHAN_ICON[c.channel] ?? "chat"} size={13} />
+      <span>{text}</span>
+      {c.state === "sent" && <Icon name="check" size={13} stroke={2.4} className="wz-tick" />}
+    </div>
+  );
 }
 
-/** Step 6: show the message once, send it with one button, then one status line per shop and a short verdict. */
+/** Step 6: show the message once, send it with one button, then each shop as a short chat thread: the
+    channels tried in its own order, live, and its answer as a bubble; a phone notification when one lands. */
 export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onRestart, onOpenShop }: {
   st: InquiryState;
   setSt: (f: (s: InquiryState) => InquiryState) => void;
@@ -48,7 +52,7 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
   const [running, setRunning] = useState(false);
   const [preview, setPreview] = useState<{ shops: InquiryShop[] } | null>(null);
   const [full, setFull] = useState(false);
-  const [chan, setChan] = useState<Record<number, Chan>>({});
+  const [log, setLog] = useState<Record<number, Chan[]>>({});
   const [link, setLink] = useState<InquiryShop | null>(null);
   const ran = useRef("");
   const key = `${st.pid}:${st.sids.join(",")}`;
@@ -64,23 +68,37 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
   }, [key]); // eslint-disable-line
 
   const start = async () => {
+    askToNotify(); // asked on this tap, since the answers often land while the person is in another app
     setRunning(true);
     setSt((s) => ({ ...s, started: true, replies: {}, summary: null }));
-    setChan({});
+    setLog({});
     window.scrollTo({ top: 0, behavior: "smooth" });
     const f: Record<number, string> = {};
     for (const [k, v] of Object.entries(forced)) if (v) f[+k] = v;
+    const names: Record<number, string> = {};
     try {
       await stream("/api/inquiry", { pid: st.pid, sids: st.sids, ctx, forced: Object.keys(f).length ? f : null }, (ev) => {
         if (ev.type === "inquiry_start") {
+          for (const s of ev.shops as InquiryShop[]) names[s.sid] = s.name;
           setSt((s) => ({ ...s, shops: ev.shops, callScript: ev.call_script, notice: ev.notice, product: ev.product }));
           // demo «زنده» without a real text: the QR is up at once, for the second phone
           const live = (ev.shops as InquiryShop[]).find((x) => f[x.sid] === "live" && !x.real);
           if (live) setLink(live);
-        }
-        else if (ev.type === "channel") setChan((c) => ({ ...c, [ev.sid]: { label: ev.label, state: ev.state, real: ev.real } }));
-        else if (ev.type === "reply") setSt((s) => ({ ...s, replies: { ...s.replies, [ev.sid]: ev as Reply } }));
-        else if (ev.type === "summary") setSt((s) => ({ ...s, summary: ev as InquirySummary }));
+        } else if (ev.type === "channel") {
+          const c: Chan = { channel: ev.channel, label: ev.label, state: ev.state, real: ev.real };
+          setLog((l) => {
+            const prev = l[ev.sid] ?? [];
+            // «no answer» closes the channel's own line instead of adding one more
+            const last = prev[prev.length - 1];
+            const rest = c.state === "no_answer" && last?.channel === c.channel ? prev.slice(0, -1) : prev;
+            return { ...l, [ev.sid]: [...rest, c] };
+          });
+        } else if (ev.type === "reply") {
+          const r = ev as Reply;
+          setSt((s) => ({ ...s, replies: { ...s.replies, [r.sid]: r } }));
+          const price = r.in_stock && r.confirmed_price ? ` · ${toman(r.confirmed_price)}` : "";
+          notify(`جواب ${names[r.sid] ?? "فروشگاه"}`, `${OUTCOME[r.outcome].label}${price}`);
+        } else if (ev.type === "summary") setSt((s) => ({ ...s, summary: ev as InquirySummary }));
         else if (ev.type === "error") toast(ev.text);
       });
     } catch {
@@ -92,8 +110,11 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
   const shops = st.started ? st.shops : preview?.shops ?? [];
   const sum = st.summary;
   const confirmed: Record<number, unknown> = {};
-  for (const r of Object.values(st.replies)) if (r.in_stock) confirmed[r.sid] = { confirmed_price: r.confirmed_price, hold_until: r.hold_until };
+  for (const r of Object.values(st.replies)) {
+    if (r.in_stock) confirmed[r.sid] = { confirmed_price: r.confirmed_price, hold_until: r.hold_until, hold_until_at: r.hold_until_at, hold_code: r.hold_code };
+  }
   const nOk = Object.keys(confirmed).length;
+  const nIn = Object.keys(st.replies).length;
   const done = st.started && !running;
   const alts = sum?.alternatives ?? [];
 
@@ -105,10 +126,15 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
     <>
       <StepHead title={title} sub={sub} />
 
-      {!st.started && (
+      {!st.started ? (
         <button className="bubble-out" onClick={() => setFull(!full)} aria-expanded={full}>
           <span className={full ? "" : "clamp3"}>{preview?.shops[0]?.draft ?? "…"}</span>
         </button>
+      ) : shops.length > 0 && (
+        <div className="wz-tally" role="status">
+          <span>{fa(nIn)} از {fa(shops.length)} فروشگاه جواب دادن</span>
+          <i style={{ width: `${(nIn / shops.length) * 100}%` }} />
+        </div>
       )}
 
       <div className="wz-opts">
@@ -116,7 +142,6 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
         {shops.map((s) => {
           const r = st.replies[s.sid];
           const o = r ? OUTCOME[r.outcome] : null;
-          const line = chanLine(s, st.started, chan[s.sid], r);
           return (
             <div key={s.sid} className="wz-iq fadein">
               <button className="wz-iq-main" onClick={() => onOpenShop(s.sid)}>
@@ -124,19 +149,40 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
                   <span className="name ellipsis">{s.name}</span>
                   <span className="meta">
                     {r?.in_stock && r.confirmed_price ? <b className="green-txt">{toman(r.confirmed_price)}</b> : s.price ? toman(s.price) : "بدون قیمت"}
-                    {r?.hold_until ? ` · تا ${r.hold_until} نگه می‌دارن` : ""}
                   </span>
                 </span>
-                {st.started && !r && <span className="typing sm"><i /><i /><i /></span>}
                 {o && <span className={"tag " + o.tone}>{o.label}</span>}
               </button>
-              {(line || (st.started && s.reply_token)) && (
-                <div className="wz-iq-ch">
-                  <Icon name={r?.real ? "check" : "chat"} size={13} />
-                  <span className="grow">{line}</span>
-                  {st.started && s.reply_token && <button className="textbtn" onClick={() => setLink(s)}>صفحهٔ مغازه‌دار</button>}
+
+              {!st.started ? (
+                s.channels?.length ? (
+                  <div className="wz-iq-ch"><Icon name="chat" size={13} />
+                    <span className="grow">راه تماس به خواست خودش: {s.channels.map((x) => x.label).join("، بعد ")}</span>
+                  </div>
+                ) : null
+              ) : (
+                <div className="wz-thread">
+                  {(log[s.sid] ?? []).map((c, i) => <ChanLine key={i} c={c} live={!r} />)}
+                  {!r && <span className="typing sm"><i /><i /><i /></span>}
+                  {r && (r.text || r.note) && (
+                    <div className={"wz-in" + (r.in_stock === false || !r.text ? " off" : "")}>
+                      <span>{r.text ?? r.note}</span>
+                      <span className="wz-in-meta">
+                        {r.via ? `از راه ${VIA[r.via] ?? r.via}` : ""}{r.real ? " · با یک لمس روی صفحهٔ جواب" : ""}
+                      </span>
+                    </div>
+                  )}
+                  {r?.hold_code && (
+                    <div className="wz-hold"><Icon name="tag" size={16} />
+                      <span className="grow">کد رزرو <b className="wz-code">{fa(r.hold_code)}</b> · تا {r.hold_until} نگه می‌دارن</span>
+                    </div>
+                  )}
+                  {s.reply_token && (
+                    <button className="textbtn wz-shoplink" onClick={() => setLink(s)}>صفحهٔ مغازه‌دار</button>
+                  )}
                 </div>
               )}
+
               {demo && !st.started && (
                 <div className="scenario" aria-label="سناریوی دمو">
                   {SCENARIOS.map(([k, l]) => (
@@ -149,7 +195,7 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
         })}
       </div>
 
-      {st.started && !sum && Object.keys(st.replies).length === shops.length && shops.length > 0 && (
+      {st.started && !sum && nIn === shops.length && shops.length > 0 && (
         <div className="typing"><i /><i /><i /> <span>دارم جمع‌بندی می‌کنم</span></div>
       )}
       {sum && <AiNote>{sum.text}</AiNote>}

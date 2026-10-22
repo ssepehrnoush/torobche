@@ -1,65 +1,38 @@
-import { useState } from "react";
-import { Sheet } from "./Sheet";
-import { Choice } from "./wizard/Shell";
+export type NavLinks = { neshan: string; balad: string; google: string; dest?: { lat: number; lon: number; name: string } };
 
-export type NavLinks = { neshan: string; balad: string; google: string };
-type NavApp = keyof NavLinks;
+const ANDROID = /android/i.test(navigator.userAgent);
+const MOBILE = ANDROID || /iphone|ipad|ipod/i.test(navigator.userAgent);
+const WEBVIEW = /; wv\)/.test(navigator.userAgent); // an app's built-in browser (Telegram, Instagram), not Chrome
 
-const APPS: { k: NavApp; name: string; sub: string }[] = [
-  { k: "neshan", name: "نشان", sub: "مسیر با ماشین، مترو یا پیاده" },
-  { k: "balad", name: "بلد", sub: "مسیر با ترافیک لحظه‌ای" },
-  { k: "google", name: "گوگل‌مپ", sub: "اگر روی گوشیت نصبه" },
-];
-const KEY = "bazargard.navApp";
-
-function saved(): NavApp | null {
-  try {
-    const v = localStorage.getItem(KEY);
-    return v === "neshan" || v === "balad" || v === "google" ? v : null;
-  } catch {
-    return null;
+/** Android: a geo: link, so the phone itself asks which installed map app to open (Neshan, Balad, Google
+    Maps or whatever is there) and opens the web map when none can. Chrome takes it as an intent: link
+    that carries its own web fallback; inside an app's built-in browser that cannot launch apps, the web
+    map opens after a moment unless the page lost focus to the chooser or an app. iPhone gives web pages
+    no such list, so it gets Google Maps' link, which opens the app when installed and the web otherwise. */
+function openRoute(nav: NavLinks) {
+  const web = nav.google;
+  if (!ANDROID || !nav.dest) {
+    if (MOBILE) window.location.href = web;
+    else window.open(web, "_blank", "noopener");
+    return;
   }
+  const { lat, lon, name } = nav.dest;
+  const geo = `${lat},${lon}?q=${lat},${lon}(${encodeURIComponent(name)})`;
+  if (WEBVIEW) { // Chrome falls back on its own; a built-in browser may just ignore the link
+    let left = false;
+    const away = () => { left = true; };
+    window.addEventListener("blur", away, { once: true });
+    document.addEventListener("visibilitychange", away, { once: true });
+    window.setTimeout(() => {
+      window.removeEventListener("blur", away);
+      document.removeEventListener("visibilitychange", away);
+      if (!left) window.location.href = web;
+    }, 1500);
+  }
+  window.location.href = `intent:${geo}#Intent;scheme=geo;S.browser_fallback_url=${encodeURIComponent(web)};end`;
 }
 
-function save(k: NavApp) {
-  try {
-    localStorage.setItem(KEY, k);
-  } catch {
-    /* private mode: ask again next time */
-  }
-}
-
-/** Routing opens in the person's own map app: Neshan, Balad or Google Maps is asked once, then remembered.
-    `open(nav)` goes straight to the remembered app; `open(nav, true)` asks again (to change it). */
+/** Routing opens in the person's own map app; the phone's «open with» list decides which. */
 export function useNavPick() {
-  const [links, setLinks] = useState<NavLinks | null>(null);
-  const [app, setApp] = useState<NavApp | null>(saved);
-  const [keep, setKeep] = useState(true);
-
-  const open = (nav: NavLinks, ask = false) => {
-    const a = ask ? null : saved();
-    if (a) window.open(nav[a], "_blank", "noopener");
-    else setLinks(nav);
-  };
-  const pick = (k: NavApp) => {
-    if (!links) return;
-    if (keep) {
-      save(k);
-      setApp(k);
-    }
-    window.open(links[k], "_blank", "noopener");
-    setLinks(null);
-  };
-
-  const sheet = links && (
-    <Sheet title="با کدوم برنامه مسیریابی کنم؟" onClose={() => setLinks(null)}>
-      <div className="wz-opts">
-        {APPS.map((a) => <Choice key={a.k} on={app === a.k} onClick={() => pick(a.k)} title={a.name} sub={a.sub} />)}
-      </div>
-      <label className="navkeep">
-        <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} /> دفعهٔ بعد نپرس، همین رو باز کن
-      </label>
-    </Sheet>
-  );
-  return { open, sheet, appName: APPS.find((a) => a.k === app)?.name ?? null };
+  return { open: (nav: NavLinks) => openRoute(nav) };
 }

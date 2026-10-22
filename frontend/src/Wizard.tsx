@@ -39,6 +39,34 @@ function loadCtx(): Ctx {
   return DEFAULT_CTX;
 }
 
+/* Where the person is in the wizard survives a reload or the browser killing a background tab (they often
+   leave for the text app or the map app mid-way), for as long as this tab lives. */
+const SAVE_KEY = "torobche.wizard";
+type Visit = { pid: number | null; sids: number[]; confirmed: Record<number, unknown> | null; asked: boolean };
+type Saved = {
+  step: Step; need: string; turn: AgentItem | null; pid: number | null; picks: { sid: number; why: string }[];
+  inq: InquiryState | null; visit: Visit | null; placed: boolean; session: string | null; searched: string | null;
+  lastNeed: string | null; lastPick: "here" | "there" | null;
+};
+
+function loadSaved(): Partial<Saved> {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(SAVE_KEY) || "{}") as Partial<Saved>;
+    if (s.turn?.pending) s.turn = null; // its answer never came; the pick step asks again
+    return s.step && ORDER.includes(s.step) ? s : {};
+  } catch {
+    return {};
+  }
+}
+
+/* Each step is an entry in the browser history, so the phone's back button goes one step back instead of
+   leaving the site. `i` is the entry's place in this wizard's own stack; a sheet gets an entry of its own. */
+type HistState = { wz: Step; i: number; sheet?: boolean };
+const hist = (): HistState | null => {
+  const s = window.history.state as HistState | null;
+  return s && ORDER.includes(s.wz) ? s : null;
+};
+
 let seq = 0;
 const nid = () => `w${Date.now().toString(36)}${(seq++).toString(36)}`;
 /* Budget, installments and the like belong to one search: a new need starts without them, the trip settings stay. */
@@ -46,29 +74,91 @@ const NO_FILTERS: Partial<Ctx> = { visit: "now", budget_min: null, budget_max: n
 const prefKey = (c: Ctx) => [c.lat, c.lon, c.range_mode, c.range_minutes, c.radius_km, c.travel_mode, c.budget_min, c.budget_max, c.installments_only, c.originality].join("|");
 
 export default function Wizard() {
+  const [saved] = useState(loadSaved);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [ctx, setCtxState] = useState<Ctx>(loadCtx);
-  const [step, setStep] = useState<Step>("need");
-  const [need, setNeed] = useState("");
-  const [turn, setTurn] = useState<AgentItem | null>(null);
+  const [step, setStep] = useState<Step>(saved.step ?? "need");
+  const [need, setNeed] = useState(saved.need ?? "");
+  const [turn, setTurn] = useState<AgentItem | null>(saved.turn ?? null);
   const [busy, setBusy] = useState(false);
-  const [pid, setPid] = useState<number | null>(null);
-  const [picks, setPicks] = useState<{ sid: number; why: string }[]>([]);
-  const [inq, setInq] = useState<InquiryState | null>(null);
-  const [visit, setVisit] = useState<{ pid: number | null; sids: number[]; confirmed: Record<number, unknown> | null; asked: boolean } | null>(null);
-  const [sheet, setSheet] = useState<SheetState>(null);
+  const [pid, setPid] = useState<number | null>(saved.pid ?? null);
+  const [picks, setPicks] = useState<{ sid: number; why: string }[]>(saved.picks ?? []);
+  const [inq, setInq] = useState<InquiryState | null>(saved.inq ?? null);
+  const [visit, setVisit] = useState<Visit | null>(saved.visit ?? null);
+  const [sheet, setSheetState] = useState<SheetState>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [placed, setPlaced] = useState(false); // no shopping place is assumed: the person picks one every time
-  const lastPick = useRef<"here" | "there" | null>(null);
-  const session = useRef<string | null>(null);
+  const [placed, setPlaced] = useState(saved.placed ?? false); // no shopping place is assumed: the person picks one every time
+  const lastPick = useRef<"here" | "there" | null>(saved.lastPick ?? null);
+  const session = useRef<string | null>(saved.session ?? null);
   const ctxRef = useRef<Ctx>(ctx);
-  const searched = useRef<string | null>(null); // need + preferences of the last search, to skip re-asking on «قبلی/ادامه»
-  const lastNeed = useRef<string | null>(null);
+  const searched = useRef<string | null>(saved.searched ?? null); // need + preferences of the last search, to skip re-asking on «قبلی/ادامه»
+  const lastNeed = useRef<string | null>(saved.lastNeed ?? null);
+  const idx = useRef(0); // this entry's place in the wizard's history stack
+  const resetting = useRef(false);
+  const data = useRef({ pid, inq, visit, need });
+  data.current = { pid, inq, visit, need };
   const demo = new URLSearchParams(window.location.search).has("demo");
 
   useEffect(() => {
     get<Meta>("/api/meta").then(setMeta).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    try {
+      const s: Saved = { step, need, turn, pid, picks, inq, visit, placed, session: session.current, searched: searched.current,
+        lastNeed: lastNeed.current, lastPick: lastPick.current };
+      sessionStorage.setItem(SAVE_KEY, JSON.stringify(s));
+    } catch {
+      /* storage full or blocked: the wizard still works, it just will not survive a reload */
+    }
+  }, [step, need, turn, pid, picks, inq, visit, placed]);
+
+  // A step whose data is gone (an old history entry, a restored tab) shows the nearest earlier step that has it.
+  const usable = (s: Step): Step => {
+    const d = data.current;
+    if (s === "go" && !d.visit) return usable(d.inq ? "ask" : "shops");
+    if (s === "ask" && !d.inq) return usable("shops");
+    if (s === "shops" && d.pid == null) return usable("pick");
+    if (s === "pick" && !d.need.trim()) return "need";
+    return s;
+  };
+
+  useEffect(() => {
+    const h = hist();
+    idx.current = h?.i ?? 0;
+    window.history.replaceState({ wz: step, i: idx.current } satisfies HistState, "");
+    const onPop = () => {
+      const h = hist();
+      if (!h) return;
+      setSheetState(null);
+      if (resetting.current) { // «از اول» unwound the stack to its first entry
+        resetting.current = false;
+        idx.current = 0;
+        window.history.replaceState({ wz: "need", i: 0 } satisfies HistState, "");
+        setStep("need");
+        return;
+      }
+      idx.current = h.i;
+      setStep(usable(h.wz));
+      window.scrollTo({ top: 0 });
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []); // eslint-disable-line
+
+  // Back on the pick step after a reload: the search that was running is gone, so run it again.
+  useEffect(() => {
+    if (step === "pick" && !turn && need.trim()) search();
+  }, []); // eslint-disable-line
+
+  const setSheet = (s: SheetState) => {
+    if (s && !sheet) {
+      idx.current++;
+      window.history.pushState({ wz: step, i: idx.current, sheet: true } satisfies HistState, "");
+    }
+    if (!s && sheet && hist()?.sheet) window.history.back(); // the popstate closes it
+    else setSheetState(s);
+  };
 
   const setCtx = useCallback((c: Ctx) => {
     ctxRef.current = c;
@@ -96,8 +186,13 @@ export default function Wizard() {
   };
 
   const go = (s: Step) => {
+    if (hist()?.sheet) window.history.replaceState({ wz: s, i: idx.current } satisfies HistState, ""); // the sheet's entry becomes the step
+    else if (s !== step) {
+      idx.current++;
+      window.history.pushState({ wz: s, i: idx.current } satisfies HistState, "");
+    }
+    setSheetState(null);
     setStep(s);
-    setSheet(null);
     window.scrollTo({ top: 0 });
   };
 
@@ -189,7 +284,13 @@ export default function Wizard() {
     setPicks([]);
     setInq(null);
     setVisit(null);
-    go("need");
+    setSheetState(null);
+    setStep("need");
+    window.scrollTo({ top: 0 });
+    if (idx.current > 0) { // unwind to the first entry, so back from here leaves the site as on a fresh start
+      resetting.current = true;
+      window.history.go(-idx.current);
+    } else window.history.replaceState({ wz: "need", i: 0 } satisfies HistState, "");
   };
 
   const back: Record<Step, Step> = {
@@ -201,7 +302,14 @@ export default function Wizard() {
     ask: pid != null ? "shops" : "pick",
     go: visit?.asked && inq ? "ask" : pid != null ? "shops" : "pick",
   };
-  const goBack = () => go(back[step]);
+  // «قبلی» walks the same history as the phone's back button, so the two never disagree.
+  const goBack = () => {
+    if (idx.current > 0) return window.history.back();
+    const b = usable(back[step]); // a restored tab has no earlier entry: step back in place
+    window.history.replaceState({ wz: b, i: 0 } satisfies HistState, "");
+    setSheetState(null);
+    setStep(b);
+  };
   const openShop = (sid: number, auth?: Authenticity) => setSheet({ kind: "shop", sid, auth });
   const sheetPid = step === "go" ? visit?.pid ?? pid : step === "ask" ? inq?.pid ?? pid : pid;
 
@@ -265,7 +373,7 @@ export default function Wizard() {
           onOpenShop={(sid) => openShop(sid)} />
       )}
       {sheet?.kind === "product" && <ProductSheet pid={sheet.pid} ctx={ctx} onClose={() => setSheet(null)} onShops={() => setSheet(null)} />}
-      {sheet?.kind === "about" && <AboutSheet meta={meta} onClose={() => setSheet(null)} onRestart={step !== "need" ? () => { setSheet(null); reset(); } : undefined} />}
+      {sheet?.kind === "about" && <AboutSheet meta={meta} onClose={() => setSheet(null)} onRestart={step !== "need" ? reset : undefined} />}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>
   );
