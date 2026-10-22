@@ -1,5 +1,5 @@
 {
-  "app": "bazargard-map",
+  "app": "torobche-gen",
   "platform": "docker",
   "port": 8000,
   "healthCheck": {

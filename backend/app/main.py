@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import agent, catalog, config, contact, db, gazetteer, llm, shops, stroll, visit
+from . import agent, catalog, config, contact, db, gazetteer, genui, llm, shops, stroll, visit
 from . import travel
 from .agent import fmt_shops, toman
 from .models import Ctx
@@ -327,6 +327,20 @@ class VisitIn(BaseModel):
     sids: list[int] = Field(min_length=1, max_length=8)
     ctx: Ctx = Ctx()
     confirmed: dict[int, dict] | None = None
+
+
+class GenIn(BaseModel):
+    need: str = Field(min_length=1, max_length=300)
+    answers: list[dict] = Field(default_factory=list, max_length=12)  # [{q, a}] of the screens answered so far
+    ctx: Ctx = Ctx()
+    known: dict = Field(default_factory=dict)  # {place: bool, travel: bool}
+    search: dict | None = None  # {q, brand} the previous screen searched with
+
+
+@app.post("/api/gen/next")
+async def gen_next(body: GenIn, request: Request):
+    """Generative UI: the next wizard screen, built by the model from a fixed box of blocks."""
+    return await genui.next_screen(body.need, body.answers, body.ctx, body.known, body.search, client_key(request))
 
 
 class StrollIn(BaseModel):

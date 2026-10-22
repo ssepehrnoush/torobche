@@ -150,3 +150,22 @@ main.wz-main > :not(.wz-foot) { animation: wzin .26s var(--ease) both; }
 .shopqr { width: 184px; height: 184px; align-self: center; margin: 4px auto; padding: 8px; background: #fff; box-shadow: 0 0 0 1px var(--line); border-radius: 12px; }
 .shopqr svg { width: 100%; height: 100%; display: block; }
 .footnote.center { justify-content: center; text-align: center; }
+
+/* Generative UI: the badge on every generated screen, the budget slider, the short comparison */
+.gen-badge {
+  display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-radius: 12px; font-size: 12.5px; line-height: 1.8;
+  background: linear-gradient(90deg, #f4f0ff, #eef6ff); color: var(--ink-2); box-shadow: inset 0 0 0 1px #e2dafc;
+}
+.gen-badge svg { color: var(--ai); flex: none; margin-top: 3px; }
+.gen-badge.rule { background: var(--surface); box-shadow: inset 0 0 0 1px var(--hair); }
+.gen-budget { display: flex; flex-direction: column; gap: 10px; padding: 18px 16px; border-radius: 14px; background: var(--surface); }
+.gen-budget-v { font-size: 22px; font-weight: 900; text-align: center; color: var(--ink); }
+.gen-budget input[type=range] { width: 100%; accent-color: var(--brand); height: 28px; }
+.gen-budget-ends { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); direction: rtl; }
+.gen-compare { display: flex; flex-direction: column; border-radius: 14px; background: var(--surface); overflow: hidden; font-size: 12.5px; }
+.gen-crow { display: grid; gap: 8px; align-items: center; padding: 8px 12px; box-shadow: 0 -1px 0 var(--hair); text-align: center; }
+.gen-crow > :first-child { text-align: right; }
+.gen-crow.head { box-shadow: none; align-items: start; }
+.gen-cprod { display: flex; flex-direction: column; align-items: center; gap: 4px; font-weight: 700; font-size: 12px; line-height: 1.6; }
+.gen-crow.pick .btn { width: 100%; }
+.gen-tag { margin-right: 6px; padding: 1px 8px; border-radius: 9px; font-size: 11px; font-weight: 800; color: var(--ai); background: #f1edff; }

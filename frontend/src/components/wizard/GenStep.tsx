@@ -1,0 +1,162 @@
+import { useState } from "react";
+import { fa, short, toman } from "../../fmt";
+import { Icon } from "../../icons";
+import type { GenAnswer, GenScreen } from "../../types";
+import { Img } from "../Products";
+import { Choice, StepHead, WizFoot } from "./Shell";
+
+/** Which block the model picked, and why: shown on top of every generated screen. */
+export function GenBadge({ s }: { s: GenScreen }) {
+  return (
+    <div className={"gen-badge fadein" + (s.source === "rule" ? " rule" : "")}>
+      <Icon name="spark" size={15} />
+      <span className="grow">{s.source === "model" ? "این صفحه رو هوش مصنوعی ساخت" : "صفحهٔ آماده"}{s.why ? `: ${s.why}` : ""}</span>
+    </div>
+  );
+}
+
+export function GenWait({ onBack }: { onBack: () => void }) {
+  return (
+    <>
+      <div className="wz-wait fadein">
+        <span className="wz-spin" />
+        <b>دارم صفحهٔ بعد رو می‌سازم…</b>
+        <span className="meta">هوش مصنوعی از روی جواب‌هات تصمیم می‌گیره چی بپرسه</span>
+      </div>
+      <WizFoot onBack={onBack} next={{ label: "صبر کن…", disabled: true }} />
+    </>
+  );
+}
+
+/** One generated screen: a choice, a budget slider, products or a comparison. Place and travel reuse the
+    fixed wizard's own steps (Wizard.tsx renders those). */
+export function GenStep({ s, busy, onBack, onAnswer, onPick }: {
+  s: GenScreen;
+  busy: boolean;
+  onBack: () => void;
+  onAnswer: (a: GenAnswer) => void;
+  onPick: (pid: number) => void;
+}) {
+  if (s.block === "choice") return <GenChoice s={s} busy={busy} onBack={onBack} onAnswer={onAnswer} />;
+  if (s.block === "budget" && s.budget) return <GenBudget s={s} busy={busy} onBack={onBack} onAnswer={onAnswer} />;
+  if (s.block === "compare" && s.compare) return <GenCompareView s={s} onBack={onBack} onPick={onPick} />;
+  return <GenProducts s={s} busy={busy} onBack={onBack} onPick={onPick} onAnswer={onAnswer} />;
+}
+
+function GenChoice({ s, busy, onBack, onAnswer }: { s: GenScreen; busy: boolean; onBack: () => void; onAnswer: (a: GenAnswer) => void }) {
+  const [sel, setSel] = useState<string[]>([]);
+  const pick = (o: string) => setSel(s.multi ? (sel.includes(o) ? sel.filter((x) => x !== o) : [...sel, o]) : [o]);
+  return (
+    <>
+      <GenBadge s={s} />
+      <StepHead title={s.title} sub={s.multi ? "چند تا رو می‌تونی بزنی" : undefined} />
+      <div className="wz-opts" role={s.multi ? "group" : "radiogroup"}>
+        {(s.options ?? []).map((o) => <Choice key={o} on={sel.includes(o)} multi={s.multi} onClick={() => pick(o)} title={o} />)}
+      </div>
+      <button className="textbtn muted center" disabled={busy} onClick={() => onAnswer({ q: s.title, a: "فرقی نمی‌کنه، خودت بهترین‌ها رو پیشنهاد بده" })}>
+        فرقی نمی‌کنه، خودت پیشنهاد بده
+      </button>
+      <WizFoot onBack={onBack} next={{ label: <>ادامه <Icon name="left" size={18} /></>, onClick: () => onAnswer({ q: s.title, a: sel.join("، ") }), disabled: !sel.length || busy }} />
+    </>
+  );
+}
+
+function GenBudget({ s, busy, onBack, onAnswer }: { s: GenScreen; busy: boolean; onBack: () => void; onAnswer: (a: GenAnswer) => void }) {
+  const b = s.budget!;
+  const start = Math.min(b.max, Math.max(b.min, Math.round(b.median / b.step) * b.step));
+  const [v, setV] = useState(start);
+  return (
+    <>
+      <GenBadge s={s} />
+      <StepHead title={s.title} sub="بازه از قیمت‌های واقعی همین کالا توی ترب ساخته شده." />
+      <div className="gen-budget fadein">
+        <b className="gen-budget-v">تا {toman(v)}</b>
+        <input type="range" min={b.min} max={b.max} step={b.step} value={v} onChange={(e) => setV(Number(e.target.value))}
+          aria-label="سقف بودجه" dir="rtl" />
+        <div className="gen-budget-ends"><span>{short(b.min)}</span><span className="meta">میانهٔ قیمت‌ها {short(b.median)}</span><span>{short(b.max)}</span></div>
+      </div>
+      <button className="textbtn muted center" disabled={busy} onClick={() => onAnswer({ q: s.title, a: "بودجه مهم نیست" })}>بودجه مهم نیست</button>
+      <WizFoot onBack={onBack} next={{ label: <>ادامه <Icon name="left" size={18} /></>, onClick: () => onAnswer({ q: s.title, a: `تا ${toman(v)}`, budget: v }), disabled: busy }} />
+    </>
+  );
+}
+
+function GenProducts({ s, busy, onBack, onPick, onAnswer }: {
+  s: GenScreen; busy: boolean; onBack: () => void; onPick: (pid: number) => void; onAnswer: (a: GenAnswer) => void;
+}) {
+  const items = s.products ?? [];
+  const [sel, setSel] = useState<number | null>(items.length === 1 ? items[0].pid : null);
+  const [more, setMore] = useState("");
+  const [ask, setAsk] = useState(false);
+  return (
+    <>
+      <GenBadge s={s} />
+      <StepHead title={s.title} />
+      <div className="wz-opts" role="radiogroup">
+        {items.map((p) => (
+          <button key={p.pid} className={"wz-prod" + (sel === p.pid ? " on" : "")} role="radio" aria-checked={sel === p.pid} onClick={() => setSel(p.pid)}>
+            <Img src={p.image} className="pimg sm" />
+            <span className="grow wz-opt-txt">
+              <span className="wz-opt-t clamp2">{p.title}</span>
+              <span className="meta">
+                <b className="wz-price">{p.price_min ? `از ${short(p.nearby_min_price || p.price_min)} تومان` : "قیمت ثبت نشده"}</b>
+                {p.n_nearby ? ` · ${fa(p.n_nearby)} فروشگاه نزدیک` : ""}
+              </span>
+            </span>
+            <span className={"radio" + (sel === p.pid ? " on" : "")}>{sel === p.pid && <i />}</span>
+          </button>
+        ))}
+      </div>
+      {ask ? (
+        <form className="wz-field sm fadein" onSubmit={(e) => { e.preventDefault(); if (more.trim()) onAnswer({ q: "توضیح بیشتر", a: more.trim() }); }}>
+          <input autoFocus value={more} onChange={(e) => setMore(e.target.value)} placeholder="مثلاً: ارزون‌تر، یا فقط سامسونگ" aria-label="توضیح بیشتر" />
+          <button className="sendbtn" type="submit" disabled={busy || !more.trim()} aria-label="ارسال"><Icon name="up" size={20} stroke={2} /></button>
+        </form>
+      ) : (
+        <button className="textbtn center" onClick={() => setAsk(true)}>هیچ‌کدوم نیست؟ دقیق‌تر بگو</button>
+      )}
+      <WizFoot onBack={onBack} next={{ label: <>دیدن فروشگاه‌ها <Icon name="left" size={18} /></>, onClick: () => sel != null && onPick(sel), disabled: sel == null || busy }} />
+    </>
+  );
+}
+
+function GenCompareView({ s, onBack, onPick }: { s: GenScreen; onBack: () => void; onPick: (pid: number) => void }) {
+  const c = s.compare!;
+  const cols = `minmax(84px, 0.8fr) repeat(${c.products.length}, 1fr)`;
+  return (
+    <>
+      <GenBadge s={s} />
+      <StepHead title={s.title} sub="فقط فرق‌هاشون رو آوردم." />
+      <div className="gen-compare fadein">
+        <div className="gen-crow head" style={{ gridTemplateColumns: cols }}>
+          <span />
+          {c.products.map((p) => (
+            <span key={p.pid} className="gen-cprod">
+              <Img src={p.image} className="pimg sm" />
+              <span className="clamp2">{p.title}</span>
+            </span>
+          ))}
+        </div>
+        <div className="gen-crow" style={{ gridTemplateColumns: cols }}>
+          <span className="meta">قیمت از</span>
+          {c.products.map((p) => <b key={p.pid}>{p.price_min ? short(p.nearby_min_price || p.price_min) : "؟"}</b>)}
+        </div>
+        <div className="gen-crow" style={{ gridTemplateColumns: cols }}>
+          <span className="meta">فروشگاه نزدیک</span>
+          {c.products.map((p) => <span key={p.pid}>{fa(p.n_nearby ?? 0)}</span>)}
+        </div>
+        {c.rows.map((r) => (
+          <div key={r.key} className="gen-crow" style={{ gridTemplateColumns: cols }}>
+            <span className="meta">{r.key}</span>
+            {r.values.map((v, i) => <span key={i}>{v ?? "-"}</span>)}
+          </div>
+        ))}
+        <div className="gen-crow pick" style={{ gridTemplateColumns: cols }}>
+          <span />
+          {c.products.map((p) => <button key={p.pid} className="btn sm" onClick={() => onPick(p.pid)}>همین</button>)}
+        </div>
+      </div>
+      <WizFoot onBack={onBack} next={{ label: "یکی رو از جدول انتخاب کن", disabled: true }} />
+    </>
+  );
+}
