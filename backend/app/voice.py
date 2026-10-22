@@ -27,7 +27,10 @@ SILENT = 400  # pcm16 peak below this is silence (about 1% of full scale)
 
 STT_PROMPT = ("Transcribe this Persian speech exactly as spoken, in Persian script, with Persian digits for numbers. "
               "The speaker is talking to a shopping assistant about products, prices and places in Tehran. "
-              "Output only the transcript. If there is no speech, output nothing.")
+              "Output only the transcript. If there is no speech, output nothing. "
+              # a phone mic once turned «کتونی» into «نهاتونی» and the assistant repeated it aloud (10-22)
+              "Words people often say here: کتونی، کفش، گوشی، شارژر، هدفون، ایرپاد، اسپیکر، لپ‌تاپ، تبلت، ساعت هوشمند، "
+              "قاب، پاوربانک، کابل، قسطی، اصل، فیک، پاساژ، علاءالدین، چارسو، تجریش، ونک، میلیون، تومن.")
 TTS_PROMPT = ("You are a text-to-speech engine. Read the text inside «» aloud in natural, warm, conversational "
               "Tehrani Persian. Say exactly those words and nothing else: do not answer, greet or add anything.")
 
