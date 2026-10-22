@@ -23,6 +23,7 @@ TTS_VOICE = os.environ.get("VOICE_TTS_VOICE", "coral")
 TTS_RATE = 24000  # pcm16 mono, as gpt-audio streams it
 MAX_AUDIO_BYTES = 2_000_000  # about a minute of 16 kHz WAV
 MAX_SPEAK_CHARS = 400
+SILENT = 400  # pcm16 peak below this is silence (about 1% of full scale)
 
 STT_PROMPT = ("Transcribe this Persian speech exactly as spoken, in Persian script, with Persian digits for numbers. "
               "The speaker is talking to a shopping assistant about products, prices and places in Tehran. "
@@ -75,10 +76,15 @@ async def speak(text: str) -> AsyncIterator[bytes]:
     ep = _endpoint()
     if not ep:
         raise llm.LLMUnavailable("voice needs BoxAPI")
+    # gpt-audio sometimes reads the sentence and then keeps streaming (once 817 s, about a dollar, 10-22): the
+    # length is capped from the text (about 20 audio tokens a second, Persian about 9 characters a second) and
+    # reading stops at the first long silence after speech.
+    seconds = len(text) / 9 + 4
     body = {"model": TTS_MODEL, "modalities": ["text", "audio"], "audio": {"voice": TTS_VOICE, "format": "pcm16"},
-            "stream": True, "temperature": 0,
+            "stream": True, "temperature": 0, "max_completion_tokens": int(seconds * 22) + 80,
             "messages": [{"role": "system", "content": TTS_PROMPT}, {"role": "user", "content": f"«{text}»"}]}
     pcm = bytearray()
+    quiet = 0  # samples of silence since the last sound
     t0 = time.monotonic()
     async with llm.slot():
         async with llm.client().stream("POST", f"{ep.base_url}/chat/completions", json=body, headers=_headers(ep)) as r:
@@ -95,12 +101,18 @@ async def speak(text: str) -> AsyncIterator[bytes]:
                     choices = json.loads(data).get("choices") or []
                 except ValueError:
                     continue
+                done = False
                 for ch in choices:
                     chunk = ((ch.get("delta") or {}).get("audio") or {}).get("data")
                     if chunk:
                         raw = base64.b64decode(chunk)
                         pcm += raw
                         yield raw
+                        samples = memoryview(raw[: len(raw) // 2 * 2]).cast("h")
+                        quiet = quiet + len(samples) if max(map(abs, samples), default=0) < SILENT else 0
+                        done = quiet >= TTS_RATE * 1.2 and len(pcm) > TTS_RATE * 2 * 1.5
+                if done:
+                    break
     log.info("tts %s %.1fs %.1fs of speech", TTS_MODEL, time.monotonic() - t0, len(pcm) / (2 * TTS_RATE))
     if pcm:
         if len(_spoken) > 60:
