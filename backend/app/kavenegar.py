@@ -43,7 +43,8 @@ _used: dict[str, int] = {}
 
 
 def _key() -> str:
-    return os.environ.get("KAVENEGAR_API_KEY", "").strip()
+    # a key copied with its .env quotes went into the URL path as-is and every request got 404
+    return os.environ.get("KAVENEGAR_API_KEY", "").strip().strip("\"'")
 
 
 def normalize_phone(s: str) -> str | None:
