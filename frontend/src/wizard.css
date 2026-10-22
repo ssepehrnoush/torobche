@@ -100,3 +100,13 @@ main.wz-main > :not(.wz-foot) { animation: wzin .26s var(--ease) both; }
 .wz-chosen { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; background: var(--blue-soft); color: var(--ink-2); font-size: 13.5px; }
 .wz-chosen svg { color: var(--blue); flex: none; }
 .wz-chosen b { color: var(--ink); }
+
+/* talking: the mic shows how loud you are while it listens; the sound button breathes while the assistant speaks */
+.wz-mic { flex: none; transition: box-shadow .08s linear, background .15s, color .15s; }
+.wz-mic.rec { animation: none; background: var(--brand); color: #fff; box-shadow: 0 0 0 calc(3px + var(--lv, 0) * 12px) rgba(233, 30, 51, .2); }
+.wz-mic.busy { background: var(--ai-soft); }
+.wz-btns .wz-mic { width: 48px; height: 48px; border-radius: 12px; background: var(--hair); color: var(--ink-2); }
+.wz-btns .wz-mic.rec { background: var(--brand); color: #fff; }
+.wz-spin.sm { width: 20px; height: 20px; border-width: 2px; margin: 0; }
+.iconbtn.wz-speaking { animation: wzbreathe 1.2s ease-in-out infinite; }
+@keyframes wzbreathe { 50% { background: var(--blue-soft); } }

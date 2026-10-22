@@ -1,16 +1,19 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { fa, short } from "../../fmt";
 import { Icon } from "../../icons";
 import type { FeedItem, Question } from "../../types";
 import { Img } from "../Products";
+import { MicButton } from "./Mic";
 import { Choice, StepHead, WizFoot } from "./Shell";
 
 type AgentItem = Extract<FeedItem, { kind: "agent" }>;
 
 /** Step 4: whatever the assistant answered becomes one screen: a question, a short list of products, or a plain reply. */
-export function PickStep({ turn, busy, onBack, onSend, onPick, onRetry }: {
+export function PickStep({ turn, busy, toast, onTalk, onBack, onSend, onPick, onRetry }: {
   turn: AgentItem | null;
   busy: boolean;
+  toast: (s: string) => void;
+  onTalk: () => void;
   onBack: () => void;
   onSend: (text: string) => void;
   onPick: (pid: number) => void;
@@ -25,9 +28,11 @@ export function PickStep({ turn, busy, onBack, onSend, onPick, onRetry }: {
       </>
     );
   }
-  if (turn.ask?.length) return <Questions key={turn.id} qs={turn.ask} intro={turn.message} busy={busy} onBack={onBack} onSubmit={onSend} />;
-  if (turn.products?.length) return <Products key={turn.id} turn={turn} busy={busy} onBack={onBack} onPick={onPick} onRefine={onSend} />;
-  return <Reply key={turn.id} message={turn.message ?? ""} busy={busy} onBack={onBack} onSend={onSend} />;
+  // Every answer screen can be answered by voice too: the words go to the assistant as if typed.
+  const mic = <MicButton toast={toast} onStart={onTalk} onText={onSend} disabled={busy} />;
+  if (turn.ask?.length) return <Questions key={turn.id} qs={turn.ask} intro={turn.message} busy={busy} mic={mic} onBack={onBack} onSubmit={onSend} />;
+  if (turn.products?.length) return <Products key={turn.id} turn={turn} busy={busy} mic={mic} onBack={onBack} onPick={onPick} onRefine={onSend} />;
+  return <Reply key={turn.id} message={turn.message ?? ""} busy={busy} mic={mic} onBack={onBack} onSend={onSend} />;
 }
 
 function Thinking({ status, onBack }: { status?: string; onBack: () => void }) {
@@ -44,7 +49,7 @@ function Thinking({ status, onBack }: { status?: string; onBack: () => void }) {
 }
 
 /** The assistant's clarifying questions, one per screen. */
-function Questions({ qs, intro, busy, onBack, onSubmit }: { qs: Question[]; intro?: string; busy: boolean; onBack: () => void; onSubmit: (t: string) => void }) {
+function Questions({ qs, intro, busy, mic, onBack, onSubmit }: { qs: Question[]; intro?: string; busy: boolean; mic: ReactNode; onBack: () => void; onSubmit: (t: string) => void }) {
   const [qi, setQi] = useState(0);
   const [sel, setSel] = useState<Record<number, string[]>>({});
   const q = qs[qi];
@@ -68,12 +73,12 @@ function Questions({ qs, intro, busy, onBack, onSubmit }: { qs: Question[]; intr
       <button className="textbtn muted center" disabled={busy} onClick={() => onSubmit("فرقی نمی‌کند، خودت بهترین‌ها را پیشنهاد بده")}>
         فرقی نمی‌کنه، خودت پیشنهاد بده
       </button>
-      <WizFoot onBack={qi > 0 ? () => setQi(qi - 1) : onBack} next={{ label: <>ادامه <Icon name="left" size={18} /></>, onClick: next, disabled: !cur.length || busy }} />
+      <WizFoot onBack={qi > 0 ? () => setQi(qi - 1) : onBack} next={{ label: <>ادامه <Icon name="left" size={18} /></>, onClick: next, disabled: !cur.length || busy }} extra={mic} />
     </>
   );
 }
 
-function Products({ turn, busy, onBack, onPick, onRefine }: { turn: AgentItem; busy: boolean; onBack: () => void; onPick: (pid: number) => void; onRefine: (t: string) => void }) {
+function Products({ turn, busy, mic, onBack, onPick, onRefine }: { turn: AgentItem; busy: boolean; mic: ReactNode; onBack: () => void; onPick: (pid: number) => void; onRefine: (t: string) => void }) {
   const items = turn.products ?? [];
   const [sel, setSel] = useState<number | null>(items.length === 1 ? items[0].pid : null);
   const [refine, setRefine] = useState(false);
@@ -102,12 +107,12 @@ function Products({ turn, busy, onBack, onPick, onRefine }: { turn: AgentItem; b
       ) : (
         <button className="textbtn center" onClick={() => setRefine(true)}>هیچ‌کدوم نیست؟ دقیق‌تر بگو</button>
       )}
-      <WizFoot onBack={onBack} next={{ label: <>دیدن فروشگاه‌ها <Icon name="left" size={18} /></>, onClick: () => sel != null && onPick(sel), disabled: sel == null || busy }} />
+      <WizFoot onBack={onBack} next={{ label: <>دیدن فروشگاه‌ها <Icon name="left" size={18} /></>, onClick: () => sel != null && onPick(sel), disabled: sel == null || busy }} extra={mic} />
     </>
   );
 }
 
-function Reply({ message, busy, onBack, onSend }: { message: string; busy: boolean; onBack: () => void; onSend: (t: string) => void }) {
+function Reply({ message, busy, mic, onBack, onSend }: { message: string; busy: boolean; mic: ReactNode; onBack: () => void; onSend: (t: string) => void }) {
   const [text, setText] = useState("");
   return (
     <>
@@ -116,7 +121,7 @@ function Reply({ message, busy, onBack, onSend }: { message: string; busy: boole
       <form className="wz-field" onSubmit={(e) => { e.preventDefault(); if (text.trim()) onSend(text.trim()); }}>
         <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="جوابت رو بنویس…" aria-label="جواب به دستیار" />
       </form>
-      <WizFoot onBack={onBack} next={{ label: <>ادامه <Icon name="left" size={18} /></>, onClick: () => onSend(text.trim()), disabled: !text.trim() || busy }} />
+      <WizFoot onBack={onBack} next={{ label: <>ادامه <Icon name="left" size={18} /></>, onClick: () => onSend(text.trim()), disabled: !text.trim() || busy }} extra={mic} />
     </>
   );
 }

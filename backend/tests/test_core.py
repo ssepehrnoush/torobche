@@ -141,3 +141,21 @@ def test_map_areas_and_tapped_points():
     desert = gazetteer.at(35.55, 51.90)  # far east of the city: nothing near, nothing listed
     assert desert["near"] is None and desert["shops_nearby"] == 0
 
+
+def test_voice_rejects_non_wav_and_obeys_the_kill_switch(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import main, voice
+    c = TestClient(main.app)
+    assert c.post("/api/voice/stt", content=b"not audio").status_code == 400
+    monkeypatch.setenv("LLM_DISABLED", "1")
+    assert not voice.available()
+    assert c.post("/api/voice/stt", content=b"RIFF" + b"\0" * 40).status_code == 503
+    assert c.post("/api/voice/tts", json={"text": "سلام"}).status_code == 503
+
+
+
+@needs_db
+def test_place_search_finds_a_name_inside_a_spoken_sentence():
+    from app import gazetteer
+    labels = [h["label"] for h in gazetteer.search("می‌خوام از تجریش خرید کنم")]
+    assert any("تجریش" in x for x in labels)

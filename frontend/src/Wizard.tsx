@@ -15,6 +15,7 @@ import { ShopsStep } from "./components/wizard/ShopsStep";
 import { HowStep, NeedStep, WhereStep } from "./components/wizard/StartSteps";
 import { Icon } from "./icons";
 import type { Authenticity, Ctx, FeedItem, Meta } from "./types";
+import { speak, stopSpeaking } from "./voice";
 import "./wizard.css";
 
 /* The same journey as the chat UI, as a setup wizard: one question per screen, «قبلی» and one main button. */
@@ -28,15 +29,16 @@ const DEFAULT_CTX: Ctx = {
   visit: "now", installments_only: false, torob_pay_only: false, open_only: false,
   range_mode: "time", range_minutes: 20, travel_mode: "car", originality: "any",
 };
-/* Web Speech API error codes, each with what the person can actually do about it. */
-const VOICE_ERROR: Record<string, string> = {
-  "not-allowed": "اجازهٔ میکروفون داده نشده؛ از تنظیمات مرورگر اجازه بدهید یا تایپ کنید",
-  "service-not-allowed": "مرورگر شما اجازهٔ تشخیص صدا نمی‌دهد؛ لطفاً تایپ کنید",
-  "network": "سرویس تشخیص صدای مرورگر در دسترس نیست؛ لطفاً تایپ کنید",
-  "language-not-supported": "مرورگر شما تشخیص صدای فارسی ندارد؛ لطفاً تایپ کنید",
-  "no-speech": "صدایی نشنیدم؛ دوباره میکروفون را بزنید و حرف بزنید",
-  "audio-capture": "میکروفونی پیدا نشد؛ لطفاً تایپ کنید",
-};
+/** What the assistant says aloud after a turn in talk mode: its sentence, then the question with its choices. */
+function spoken(t: AgentItem): string {
+  const msg = (t.message ?? "").replace(/[:：]\s*$/, "").trim();
+  if (t.ask?.length) {
+    const q = t.ask[0];
+    return [msg, q.question, q.options.slice(0, 4).join("، ")].filter(Boolean).join(". ");
+  }
+  if (t.products?.length) return [msg, "کدوم رو می‌خوای؟"].filter(Boolean).join(". ");
+  return msg;
+}
 
 function loadCtx(): Ctx {
   try {
@@ -67,7 +69,10 @@ export default function Wizard() {
   const [visit, setVisit] = useState<{ pid: number | null; sids: number[]; confirmed: Record<number, unknown> | null; asked: boolean } | null>(null);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [listening, setListening] = useState(false);
+  const [talk, setTalk] = useState(false); // after the mic is used, the assistant reads its answers aloud
+  const [talked, setTalked] = useState(false); // the sound button appears once the mic has been used
+  const [speaking, setSpeaking] = useState(false);
+  const talkRef = useRef(false);
   const [placed, setPlaced] = useState(false); // no shopping place is assumed: the person picks one every time
   const lastPick = useRef<"here" | "there" | null>(null);
   const session = useRef<string | null>(null);
@@ -75,7 +80,6 @@ export default function Wizard() {
   const searched = useRef<string | null>(null); // need + preferences of the last search, to skip re-asking on «قبلی/ادامه»
   const lastNeed = useRef<string | null>(null);
   const demo = new URLSearchParams(window.location.search).has("demo");
-  const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
   useEffect(() => {
     get<Meta>("/api/meta").then(setMeta).catch(() => {});
@@ -106,6 +110,13 @@ export default function Wizard() {
     setCtx(c);
   };
 
+  const setTalkMode = (on: boolean) => {
+    talkRef.current = on;
+    setTalk(on);
+    if (on) setTalked(true);
+    else stopSpeaking();
+  };
+
   const go = (s: Step) => {
     setStep(s);
     setSheet(null);
@@ -130,9 +141,14 @@ export default function Wizard() {
     if (!text || busy) return;
     if (fresh) session.current = null;
     const id = nid();
-    setTurn({ kind: "agent", id, steps: [], pending: true });
+    let cur: AgentItem = { kind: "agent", id, steps: [], pending: true }; // kept here too, to read aloud at the end
+    setTurn(cur);
     setBusy(true);
-    const patch = (fn: (a: AgentItem) => AgentItem) => setTurn((a) => (a && a.id === id ? fn(a) : a));
+    const patch = (fn: (a: AgentItem) => AgentItem) => {
+      cur = fn(cur);
+      const now = cur;
+      setTurn((a) => (a && a.id === id ? now : a));
+    };
     try {
       await stream("/api/chat", { session_id: session.current, text, ctx: ctxRef.current, ui: { step: "discover", pid, compare: [] } }, (ev) => {
         switch (ev.type) {
@@ -174,6 +190,7 @@ export default function Wizard() {
     }
     patch((a) => ({ ...a, pending: false }));
     setBusy(false);
+    if (talkRef.current && !cur.error && spoken(cur)) speak(spoken(cur), setSpeaking);
   };
 
   // «پیدا کن»: search again only if the need or the trip changed since the last search.
@@ -186,35 +203,9 @@ export default function Wizard() {
     go("pick");
   };
 
-  const listen = () => {
-    if (!SR || listening) return;
-    const rec = new SR();
-    rec.lang = "fa-IR";
-    rec.interimResults = false;
-    rec.maxAlternatives = 1;
-    rec.onresult = (e: any) => {
-      const t = e.results?.[0]?.[0]?.transcript as string | undefined;
-      if (t) {
-        setNeed(t);
-        go("where");
-      }
-    };
-    rec.onerror = (e: any) => {
-      if (e?.error === "aborted") return;
-      toast(VOICE_ERROR[e?.error] ?? "صدا تشخیص داده نشد؛ لطفاً تایپ کنید");
-    };
-    rec.onend = () => setListening(false);
-    setListening(true);
-    try {
-      rec.start();
-    } catch {
-      setListening(false);
-      toast("تشخیص صدا شروع نشد؛ لطفاً تایپ کنید");
-    }
-  };
-
   const reset = () => {
     if (busy) return;
+    stopSpeaking();
     session.current = null;
     searched.current = null;
     lastNeed.current = null;
@@ -258,6 +249,12 @@ export default function Wizard() {
           {step !== "need" && (
             <button className="textbtn muted wz-restart" onClick={reset} disabled={busy}><Icon name="refresh" size={16} /> از اول</button>
           )}
+          {talked && (
+            <button className={"iconbtn" + (talk ? " on" : "") + (speaking ? " wz-speaking" : "")} onClick={() => setTalkMode(!talk)}
+              aria-pressed={talk} aria-label={talk ? "دستیار جواب‌ها را با صدا می‌گوید؛ بی‌صدا کن" : "جواب‌ها را با صدا بگو"}>
+              <Icon name={talk ? "sound" : "mute"} size={21} />
+            </button>
+          )}
           <button className="iconbtn" onClick={() => setSheet({ kind: "about" })} aria-label="دربارهٔ داده و روش کار">
             <Icon name="info" size={21} />
           </button>
@@ -266,7 +263,7 @@ export default function Wizard() {
       </header>
 
       <main className="wz-main" key={step}>
-        {step === "need" && <NeedStep need={need} setNeed={setNeed} meta={meta} listening={listening} listen={SR ? listen : undefined}
+        {step === "need" && <NeedStep need={need} setNeed={setNeed} meta={meta} toast={toast} onTalk={() => setTalkMode(true)}
           onNext={(t) => {
             const text = (t ?? need).trim();
             if (t) setNeed(t);
@@ -274,10 +271,10 @@ export default function Wizard() {
             lastNeed.current = text;
             go("where");
           }} />}
-        {step === "where" && <WhereStep ctx={ctx} placed={placed} pickPlace={pickPlace} toast={toast} onBack={goBack} onNext={() => go("how")} />}
+        {step === "where" && <WhereStep ctx={ctx} placed={placed} pickPlace={pickPlace} toast={toast} onTalk={() => setTalkMode(true)} onBack={goBack} onNext={() => go("how")} />}
         {step === "how" && <HowStep ctx={ctx} setCtx={setCtx} onFilters={() => setSheet({ kind: "filters" })} onBack={goBack} onNext={search} />}
         {step === "pick" && (
-          <PickStep turn={turn} busy={busy} onBack={goBack} onSend={(t) => send(t)} onPick={(p) => openShops(p)}
+          <PickStep turn={turn} busy={busy} toast={toast} onTalk={() => setTalkMode(true)} onBack={goBack} onSend={(t) => send(t)} onPick={(p) => openShops(p)}
             onRetry={() => { searched.current = null; search(); }} />
         )}
         {step === "shops" && pid != null && (

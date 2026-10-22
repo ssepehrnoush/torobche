@@ -108,6 +108,8 @@ def search(text: str, limit: int = 8) -> list[dict]:
             rank = 1
         elif q_core in e["_core"] or q_full in e["_full"]:
             rank = 2
+        elif len(e["_core"]) >= 4 and e["_core"] in q_core:  # a spoken sentence: «می‌خوام از تجریش بخرم»
+            rank = 3
         else:
             continue
         kind = -1 if e["kind"] == hint else KIND_ORDER[e["kind"]]
