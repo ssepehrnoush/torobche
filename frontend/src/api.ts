@@ -53,7 +53,9 @@ export async function stream(path: string, body: unknown, onEvent: (ev: any) => 
 export const api = {
   genNext: (body: { need: string; answers: import("./types").GenAnswer[]; ctx: Ctx; known: import("./types").GenKnown; search: unknown }) =>
     post<import("./types").GenTurn>("/api/gen/next", body),
-  shops:(pid: number, ctx: Ctx, sort: string, exclude: number[] = [], signal?: AbortSignal) =>
+  genShops: (pid: number, ctx: Ctx, need: string, signal?: AbortSignal) =>
+    post<import("./types").GenShops>("/api/gen/shops", { pid, ctx, need }, signal),
+  shops: (pid: number, ctx: Ctx, sort: string, exclude: number[] = [], signal?: AbortSignal) =>
     post<import("./types").ShopsResult>("/api/shops", { pid, ctx, sort, exclude }, signal),
   insight: (pid: number, ctx: Ctx, signal?: AbortSignal) =>
     post<{ headline: string; body: string; pick_sid: number | null }>("/api/shops/insight", { pid, ctx }, signal),

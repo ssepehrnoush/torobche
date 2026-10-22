@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { fa, short, toman } from "../../fmt";
 import { Icon } from "../../icons";
 import type { GenAnswer, GenScreen } from "../../types";
@@ -6,7 +6,7 @@ import { Img } from "../Products";
 import { Choice, StepHead, WizFoot } from "./Shell";
 
 /** Which block the model picked, and why: shown on top of every generated screen. */
-export function GenBadge({ s }: { s: GenScreen }) {
+export function GenBadge({ s }: { s: { source: string; why: string } }) {
   return (
     <div className={"gen-badge fadein" + (s.source === "rule" ? " rule" : "")}>
       <Icon name="spark" size={15} />
@@ -30,22 +30,29 @@ export function GenWait({ onBack }: { onBack: () => void }) {
 
 /** One generated screen: a choice, a budget slider, products or a comparison. Place and travel reuse the
     fixed wizard's own steps (Wizard.tsx renders those). */
-export function GenStep({ s, busy, onBack, onAnswer, onPick }: {
+export function GenStep({ s, busy, onBack, onAnswer, onIntent, onPick }: {
   s: GenScreen;
   busy: boolean;
   onBack: () => void;
   onAnswer: (a: GenAnswer) => void;
+  onIntent: (a: GenAnswer) => void; // the likely answer, so the next screen can be built before «ادامه»
   onPick: (pid: number) => void;
 }) {
-  if (s.block === "choice") return <GenChoice s={s} busy={busy} onBack={onBack} onAnswer={onAnswer} />;
-  if (s.block === "budget" && s.budget) return <GenBudget s={s} busy={busy} onBack={onBack} onAnswer={onAnswer} />;
+  if (s.block === "choice") return <GenChoice s={s} busy={busy} onBack={onBack} onAnswer={onAnswer} onIntent={onIntent} />;
+  if (s.block === "budget" && s.budget) return <GenBudget s={s} busy={busy} onBack={onBack} onAnswer={onAnswer} onIntent={onIntent} />;
   if (s.block === "compare" && s.compare) return <GenCompareView s={s} onBack={onBack} onPick={onPick} />;
   return <GenProducts s={s} busy={busy} onBack={onBack} onPick={onPick} onAnswer={onAnswer} />;
 }
 
-function GenChoice({ s, busy, onBack, onAnswer }: { s: GenScreen; busy: boolean; onBack: () => void; onAnswer: (a: GenAnswer) => void }) {
+function GenChoice({ s, busy, onBack, onAnswer, onIntent }: {
+  s: GenScreen; busy: boolean; onBack: () => void; onAnswer: (a: GenAnswer) => void; onIntent: (a: GenAnswer) => void;
+}) {
   const [sel, setSel] = useState<string[]>([]);
-  const pick = (o: string) => setSel(s.multi ? (sel.includes(o) ? sel.filter((x) => x !== o) : [...sel, o]) : [o]);
+  const pick = (o: string) => {
+    const next = s.multi ? (sel.includes(o) ? sel.filter((x) => x !== o) : [...sel, o]) : [o];
+    setSel(next);
+    if (!s.multi) onIntent({ q: s.title, a: o });
+  };
   return (
     <>
       <GenBadge s={s} />
@@ -61,10 +68,16 @@ function GenChoice({ s, busy, onBack, onAnswer }: { s: GenScreen; busy: boolean;
   );
 }
 
-function GenBudget({ s, busy, onBack, onAnswer }: { s: GenScreen; busy: boolean; onBack: () => void; onAnswer: (a: GenAnswer) => void }) {
+function GenBudget({ s, busy, onBack, onAnswer, onIntent }: {
+  s: GenScreen; busy: boolean; onBack: () => void; onAnswer: (a: GenAnswer) => void; onIntent: (a: GenAnswer) => void;
+}) {
   const b = s.budget!;
   const start = Math.min(b.max, Math.max(b.min, Math.round(b.median / b.step) * b.step));
   const [v, setV] = useState(start);
+  useEffect(() => { // build the next screen for the value the slider rests on
+    const t = window.setTimeout(() => onIntent({ q: s.title, a: `تا ${toman(v)}`, budget: v }), 600);
+    return () => window.clearTimeout(t);
+  }, [v]); // eslint-disable-line
   return (
     <>
       <GenBadge s={s} />

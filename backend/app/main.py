@@ -337,6 +337,18 @@ class GenIn(BaseModel):
     search: dict | None = None  # {q, brand} the previous screen searched with
 
 
+class GenShopsIn(BaseModel):
+    pid: int
+    ctx: Ctx = Ctx()
+    need: str = Field("", max_length=300)
+
+
+@app.post("/api/gen/shops")
+async def gen_shops(body: GenShopsIn, request: Request):
+    """Generative UI: how the shops screen opens (best pick, price map, cheaper further away, or the list)."""
+    return await genui.shops_layout(body.pid, body.ctx, body.need, client_key(request))
+
+
 @app.post("/api/gen/next")
 async def gen_next(body: GenIn, request: Request):
     """Generative UI: the next wizard screen, built by the model from a fixed box of blocks."""

@@ -13,14 +13,17 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 
-from . import catalog, llm
+from . import catalog, llm, shops
 from .agent import fmt_search, prefetch_query, quick_prefs
 from .models import Ctx, range_label
+from .places import PLACES
 
 log = logging.getLogger("genui")
 BLOCKS = ("choice", "budget", "place", "travel", "products", "compare")
-LLM_TIMEOUT_S = 12.0
+TRAVEL_WORDS = re.compile(r"پیاده|مترو|اتوبوس|با ماشین|ماشین دارم|تاکسی|\d+\s*(?:دقیقه|دیقه)|[۰-۹]+\s*(?:دقیقه|دیقه)")
+LLM_TIMEOUT_S = 6.0  # past this the plain rule builds the screen, so nobody waits on a busy shared key
 MAX_SCREENS = 6  # after this many generated screens the products are shown, whatever the model says
 
 TOOL = {"type": "function", "function": {
@@ -155,11 +158,19 @@ async def next_screen(need: str, answers: list[dict], ctx: Ctx, known: dict, sea
                       budget_key: str | None = None) -> dict:
     """The next screen, with its data filled in. Returns the screen, the context and what is known after
     the person's words, and the search to keep for the next turn."""
-    text = " ".join([need] + [str(a.get("a", "")) for a in answers])
     # «کتونی برای پیاده‌روی» is about the shoes, not about walking to the shop
-    ctx, changed = quick_prefs(text.replace("پیاده‌روی", " ").replace("پیاده روی", " "), ctx)
+    text = " ".join([need] + [str(a.get("a", "")) for a in answers]).replace("پیاده‌روی", " ").replace("پیاده روی", " ")
+    ctx, changed = quick_prefs(text, ctx)
+    # said counts as known even when it matches what the context already held (quick_prefs reports changes only)
     known = {"place": bool(known.get("place") or "lat" in changed or "place" in changed),
-             "travel": bool(known.get("travel") or {"travel_mode", "range_minutes"} & changed.keys())}
+             "travel": bool(known.get("travel") or {"travel_mode", "range_minutes"} & changed.keys() or TRAVEL_WORDS.search(text))}
+    if not known["place"]:  # a named place counts even when it is the app's default (quick_prefs skips those)
+        for p in PLACES:
+            key = p["label"].replace("میدان ", "").split(" (")[0]
+            if len(key) > 2 and key in text:
+                ctx = ctx.model_copy(update={"lat": p["lat"], "lon": p["lon"], "place": p["label"]})
+                known["place"] = True
+                break
     for a in answers:  # a budget slider answer carries its number, so it never depends on parsing the text
         if isinstance(a.get("budget"), int) and a["budget"] > 0:
             ctx = ctx.model_copy(update={"budget_max": a["budget"], "budget_min": 0})
@@ -217,3 +228,99 @@ async def _products_instead(res: dict, ctx: Ctx, q: str, brand: str | None, out:
     out.update(block="products", title="کدوم رو می‌خوای؟", why="این‌ها به نیازت نزدیک‌ترن.",
                products=_cards(res, [i["pid"] for i in res["items"][:4]]))
     return {"screen": out, "ctx": ctx.model_dump(), "known": known, "search": {"q": q, "brand": brand}}
+
+
+# ---------------------------------------------------------------------------------------
+# The shops screen: the model decides how to show them, the list itself stays the same
+# ---------------------------------------------------------------------------------------
+SHOP_LAYOUTS = ("best", "list", "map", "bargain", "expand")
+SHOP_TOOL = {"type": "function", "function": {
+    "name": "render_shops",
+    "description": "Decide how the shops screen opens: one layout on top of the usual list.",
+    "parameters": {"type": "object", "properties": {
+        "layout": {"type": "string", "enum": list(SHOP_LAYOUTS)},
+        "title": {"type": "string", "description": "The screen's title, short colloquial Persian"},
+        "why": {"type": "string", "description": "One short Persian line: why the screen opens like this"},
+        "best_sid": {"type": "integer", "description": "best: the one shop recommended, from the list"},
+        "reason": {"type": "string", "description": "best: one short Persian line on why that shop"},
+    }, "required": ["layout", "title", "why"]},
+}}
+SHOP_SYSTEM = """تو صفحهٔ «مغازه‌ها»ی یک دستیارِ خریدِ حضوری را می‌چینی. فهرستِ مغازه‌ها همیشه هست؛ تو فقط تصمیم می‌گیری بالای آن چه بیاید (layout):
+- best: فقط وقتی ارزان‌ترین مغازهٔ باز و بی‌هشدار دست‌کم ۵٪ از دومی ارزان‌تر است، یا هم‌قیمت است ولی خیلی نزدیک‌تر. best_sid و reason را بده؛ reason باید عددِ واقعی داشته باشد (مثلاً «۸٪ ارزون‌تر از بعدی و ۶ دقیقه پیاده»)، و اگر مغازه‌های ارزان‌تری هست که موقعِ رسیدن بسته‌اند یا ساعتِ همین مغازه ثبت نشده، همین را صادقانه بگو (مثلاً «ارزون‌ترین مغازه‌ای که موقع رسیدنت بسته نیست؛ ساعتش ثبت نشده، بپرس»).
+- map: وقتی دست‌کم سه مغازه اختلافِ قیمت‌شان کمتر از ۱۰٪ است، پس جای مغازه تصمیم را عوض می‌کند؛ نقشه با برچسبِ قیمت نشان داده می‌شود.
+- bargain: وقتی «پیشنهادِ دورتر» هست و صرفه‌اش دست‌کم ۵٪ قیمت است.
+- expand: فقط وقتی در محدوده هیچ مغازه‌ای نیست.
+- list: بقیهٔ حالت‌ها.
+title و why فارسیِ خودمانی و کوتاه، بدونِ خطِ تیرهٔ بلند و ایموجی. sid را فقط از فهرستِ زیر بردار."""
+
+
+def _shops_brief(res: dict, need: str, ctx: Ctx) -> str:
+    near = [i for i in res["items"] if i["in_radius"]]
+    lines = [f"نیاز: {need}", f"محدوده: {range_label(ctx)} | مغازه در محدوده: {len(near)} از {res['stats']['total']}"]
+    clean = sorted((i for i in near if i["price"] and not i.get("price_warning") and i["open_at_visit"]["state"] != "closed"),
+                   key=lambda i: i["price"])
+    if len(clean) >= 2:
+        gap = round(100 * (clean[1]["price"] - clean[0]["price"]) / clean[1]["price"])
+        spread = round(100 * (clean[min(2, len(clean) - 1)]["price"] - clean[0]["price"]) / clean[0]["price"])
+        closed = [i for i in near if i["price"] and i["price"] < clean[0]["price"] and i["open_at_visit"]["state"] == "closed"]
+        lines.append(f"ارزان‌ترین مغازه‌ای که موقعِ رسیدن بسته نیست و هشدار ندارد: sid={clean[0]['sid']}، "
+                     f"{gap}٪ ارزان‌تر از دومین مغازهٔ بسته‌نشده؛ اختلافِ قیمتِ سه مغازهٔ اول: {spread}٪"
+                     + (f"؛ {len(closed)} مغازهٔ ارزان‌تر هم هست ولی موقعِ رسیدن بسته‌اند" if closed else "")
+                     + ("؛ ساعتِ کاریِ همین مغازه ثبت نشده" if clean[0]["open_at_visit"]["state"] == "unknown" else ""))
+    for i in near[:8]:
+        warn = []
+        if i.get("price_warning"):
+            warn.append("قیمت مشکوک")
+        if (i.get("authenticity") or {}).get("status") in ("suspicious", "declared_copy"):
+            warn.append("اصالت مشکوک")
+        lines.append(f"sid={i['sid']} | {i['name']} | {i['price'] or 'بی‌قیمت'} تومان | {i['travel']['label']} | "
+                     f"{i['open_at_visit']['label']}" + (f" | هشدار: {'، '.join(warn)}" if warn else ""))
+    if res.get("bargain"):
+        b = res["bargain"]
+        lines.append(f"پیشنهادِ دورتر: {b['name']} | {b['price']} تومان | صرفه {b.get('saving')} تومان | {b.get('travel_label')}")
+    return "\n".join(lines)
+
+
+def shops_rule(res: dict) -> dict:
+    near = [i for i in res["items"] if i["in_radius"]]
+    if not near:
+        return {"layout": "expand", "title": "این دور و بر نیست", "why": "توی محدوده‌ات مغازه‌ای این کالا رو نداره."}
+    b = res.get("bargain")
+    if b and (b.get("saving") or 0) > 0:
+        return {"layout": "bargain", "title": "از کدوم فروشگاه‌ها بپرسیم؟", "why": "یه جای کمی دورتر خیلی ارزون‌تره."}
+    clean = [i for i in near if i["price"] and not i.get("price_warning") and i["open_at_visit"]["state"] != "closed"]
+    if len(clean) >= 2:
+        first, second = sorted(clean, key=lambda i: i["price"])[:2]
+        if first["price"] <= 0.95 * second["price"]:
+            return {"layout": "best", "title": "این یکی از همه بهتره", "why": "از بقیه آشکارا ارزون‌تره و موقع رسیدنت بازه.",
+                    "best_sid": first["sid"], "reason": f"دست‌کم ۵٪ ارزون‌تر از بقیه، {first['travel']['label']}"}
+    if len(near) >= 3:
+        return {"layout": "map", "title": "از کدوم فروشگاه‌ها بپرسیم؟", "why": "قیمت‌ها نزدیک همن؛ جاشون تعیین می‌کنه."}
+    return {"layout": "list", "title": "از کدوم فروشگاه‌ها بپرسیم؟", "why": ""}
+
+
+async def shops_layout(pid: int, ctx: Ctx, need: str, budget_key: str | None = None) -> dict:
+    """How the shops screen opens, decided by the model (a plain rule when it is slow or invalid)."""
+    res = await asyncio.to_thread(shops.rank_shops_for_product, pid, ctx, "best", set())
+    near = {i["sid"] for i in res["items"] if i["in_radius"]}
+    out, source = None, "rule"
+    if llm.available() and res["items"]:
+        try:
+            llm.check_session_budget(budget_key)
+            msg = await asyncio.wait_for(llm.chat(
+                [{"role": "system", "content": SHOP_SYSTEM}, {"role": "user", "content": _shops_brief(res, need, ctx)}],
+                tools=[SHOP_TOOL], tool_choice={"type": "function", "function": {"name": "render_shops"}},
+                temperature=0.2, max_tokens=300), timeout=LLM_TIMEOUT_S)
+            s = json.loads(((msg.get("tool_calls") or [{}])[0].get("function") or {}).get("arguments") or "{}")
+            ok = s.get("layout") in SHOP_LAYOUTS and s.get("title")
+            ok = ok and (s["layout"] != "best" or s.get("best_sid") in near)
+            ok = ok and (s["layout"] != "bargain" or bool(res.get("bargain")))
+            ok = ok and (s["layout"] != "expand" or not near)
+            ok = ok and (s["layout"] != "map" or len(near) >= 3)
+            if ok:
+                out, source = s, "model"
+        except Exception as e:
+            log.warning("model shops layout failed: %s", type(e).__name__)
+    out = out or shops_rule(res)
+    return {"layout": out["layout"], "title": out["title"], "why": out.get("why") or "", "source": source,
+            "best_sid": out.get("best_sid") if out["layout"] == "best" else None, "reason": out.get("reason") or ""}

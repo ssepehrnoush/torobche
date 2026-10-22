@@ -323,3 +323,4 @@ export type GenScreen = {
   compare?: GenCompare;
 };
 export type GenTurn = { screen: GenScreen; ctx: Ctx; known: GenKnown; search: { q: string; brand: string | null } };
+export type GenShops = { layout: "best" | "list" | "map" | "bargain" | "expand"; title: string; why: string; source: "model" | "rule"; best_sid: number | null; reason: string };

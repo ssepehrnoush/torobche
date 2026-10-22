@@ -169,3 +169,15 @@ main.wz-main > :not(.wz-foot) { animation: wzin .26s var(--ease) both; }
 .gen-cprod { display: flex; flex-direction: column; align-items: center; gap: 4px; font-weight: 700; font-size: 12px; line-height: 1.6; }
 .gen-crow.pick .btn { width: 100%; }
 .gen-tag { margin-right: 6px; padding: 1px 8px; border-radius: 9px; font-size: 11px; font-weight: 800; color: var(--ai); background: #f1edff; }
+/* generative shops layout: the one shop the model recommends, or the cheaper one a little further */
+.gen-best { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 14px; background: #fbfaff; box-shadow: inset 0 0 0 2px #d9cffb; }
+.gen-best.bargain { background: var(--green-soft); box-shadow: inset 0 0 0 1.5px rgba(22, 163, 74, .3); }
+.gen-best-tag { display: inline-flex; align-items: center; gap: 4px; width: fit-content; font-size: 12px; font-weight: 800; color: var(--ai); }
+.gen-best.bargain .gen-best-tag { color: var(--green); }
+.gen-best-main { display: flex; flex-direction: column; gap: 4px; text-align: right; }
+.gen-best .r1 { display: flex; justify-content: space-between; gap: 8px; }
+.gen-best .name { font-weight: 800; font-size: 15px; }
+.gen-best .amount { font-weight: 800; }
+.gen-best .r3 { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.gen-best-why { font-size: 13px; color: var(--ink-2); }
+.gen-best-btns { display: flex; gap: 8px; }

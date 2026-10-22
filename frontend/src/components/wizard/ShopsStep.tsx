@@ -1,22 +1,28 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { api } from "../../api";
-import { fa, toman } from "../../fmt";
+import { fa, short, toman } from "../../fmt";
 import { Icon } from "../../icons";
-import type { Authenticity, Ctx, ShopOffer, ShopsResult } from "../../types";
+import type { Authenticity, Ctx, GenShops, ShopOffer, ShopsResult } from "../../types";
 import { activeFilters } from "../ContextBar";
 import { AuthBadge, OpenText, TravelInline } from "../bits";
 import { Img } from "../Products";
+import { GenBadge } from "./GenStep";
 import { StepHead, WizFoot } from "./Shell";
 
+const MapView = lazy(() => import("../MapView").then((m) => ({ default: m.MapView })));
 const FIRST = 5; // rows shown before «بیشتر»
 const MAX_SEL = 5;
 
-/** Step 5: a short list of nearby shops, the best three already ticked. Everything else waits behind one button. */
-export function ShopsStep({ pid, ctx, setCtx, picks, onBack, onAsk, onGo, onOpenShop, onDetails }: {
+/** Step 5: a short list of nearby shops, the best three already ticked. Everything else waits behind one button.
+    Generative UI: the model also decides what opens the screen above the list (the one shop it recommends,
+    a map with prices, a cheaper shop a little further, or nothing); the list shows at once, the layout
+    joins when it is ready, so nobody waits on the model. */
+export function ShopsStep({ pid, ctx, setCtx, picks, need, onBack, onAsk, onGo, onOpenShop, onDetails }: {
   pid: number;
   ctx: Ctx;
   setCtx: (c: Ctx) => void;
   picks: { sid: number; why: string }[];
+  need?: string;
   onBack: () => void;
   onAsk: (sids: number[]) => void;
   onGo: (sids: number[]) => void;
@@ -29,7 +35,16 @@ export function ShopsStep({ pid, ctx, setCtx, picks, onBack, onAsk, onGo, onOpen
   const [chosen, setChosen] = useState<number[]>([]); // the first selection stays in the short list even if it sits lower
   const [all, setAll] = useState(false);
   const [tries, setTries] = useState(0);
+  const [layout, setLayout] = useState<GenShops | null>(null);
   const ctxKey = JSON.stringify(ctx);
+
+  useEffect(() => {
+    if (need === undefined) return;
+    const ac = new AbortController();
+    setLayout(null);
+    api.genShops(pid, ctx, need, ac.signal).then(setLayout).catch(() => {});
+    return () => ac.abort();
+  }, [pid, ctxKey]); // eslint-disable-line
 
   useEffect(() => {
     const ac = new AbortController();
@@ -68,7 +83,7 @@ export function ShopsStep({ pid, ctx, setCtx, picks, onBack, onAsk, onGo, onOpen
 
   return (
     <>
-      <StepHead title="از کدوم فروشگاه‌ها بپرسیم؟"
+      <StepHead title={layout?.source === "model" && layout.title ? layout.title : "از کدوم فروشگاه‌ها بپرسیم؟"}
         sub={!data ? " " : near.length ? `${fa(near.length)} فروشگاه ${range} این کالا رو دارن. بهترین‌ها رو انتخاب کردم؛ اگه خواستی عوضشون کن.` : undefined} />
 
       <button className="wz-prodline" onClick={onDetails} aria-label="مشخصات کالا">
@@ -76,6 +91,11 @@ export function ShopsStep({ pid, ctx, setCtx, picks, onBack, onAsk, onGo, onOpen
         <span className="grow ellipsis">{p?.title ?? "…"}</span>
         <span className="linkbtn">مشخصات</span>
       </button>
+
+      {layout && data && near.length > 0 && (
+        <GenLayout layout={layout} near={near} ctx={ctx} bargain={bargain} sel={sel} onToggle={toggle}
+          onAsk={onAsk} onGo={onGo} onOpenShop={onOpenShop} />
+      )}
 
       {err && <div className="card empty">دریافت فروشگاه‌ها ناموفق بود. <button className="textbtn" onClick={() => setTries(tries + 1)}>تلاش دوباره</button></div>}
       {!data && !err && <div className="card list-skel">{[0, 1, 2].map((i) => <div key={i} className="shimmer" style={{ height: 60 }} />)}</div>}
@@ -140,4 +160,68 @@ function ShopRow({ i, on, cheapest, saving, onToggle, onInfo }: {
       <button className="wz-info" onClick={onInfo} aria-label={`جزئیات ${i.name}`}><Icon name="info" size={18} /></button>
     </div>
   );
+}
+
+/** What opens the shops screen, chosen by the model; the usual list follows it. */
+function GenLayout({ layout, near, ctx, bargain, sel, onToggle, onAsk, onGo, onOpenShop }: {
+  layout: GenShops;
+  near: ShopOffer[];
+  ctx: Ctx;
+  bargain: ShopsResult["bargain"] | null;
+  sel: number[];
+  onToggle: (sid: number) => void;
+  onAsk: (sids: number[]) => void;
+  onGo: (sids: number[]) => void;
+  onOpenShop: (sid: number, auth?: Authenticity) => void;
+}) {
+  const badge = layout.why ? <GenBadge s={layout} /> : null;
+  if (layout.layout === "best") {
+    const b = near.find((i) => i.sid === layout.best_sid);
+    if (!b) return badge;
+    return (
+      <>
+        {badge}
+        <div className="gen-best fadein">
+          <span className="gen-best-tag"><Icon name="spark" size={14} /> پیشنهاد من</span>
+          <button className="gen-best-main" onClick={() => onOpenShop(b.sid, b.authenticity)}>
+            <span className="r1"><span className="name ellipsis">{b.name}</span><span className="amount">{b.price ? toman(b.price) : "بدون قیمت"}</span></span>
+            <span className="r3"><TravelInline t={b.travel} /><OpenText s={b.open_at_visit} /></span>
+            {layout.reason && <span className="gen-best-why">{layout.reason}</span>}
+          </button>
+          <div className="gen-best-btns">
+            <button className="btn sm grow" onClick={() => onAsk([b.sid])}><Icon name="chat" size={16} /> فقط از همین بپرس</button>
+            <button className="btn ghost sm" onClick={() => onGo([b.sid])}><Icon name="route" size={16} /> مسیرش</button>
+          </div>
+        </div>
+        <p className="meta" style={{ margin: "4px 4px 0" }}>یا از چند تا با هم بپرس:</p>
+      </>
+    );
+  }
+  if (layout.layout === "map") {
+    return (
+      <>
+        {badge}
+        <Suspense fallback={<div className="shimmer mapbox small" />}>
+          <MapView you={{ lat: ctx.lat, lon: ctx.lon }} small onPick={onToggle}
+            pins={near.slice(0, 12).map((i) => ({ id: i.sid, lat: i.lat, lon: i.lon, label: i.price ? short(i.price) : "؟", tone: sel.includes(i.sid) ? "pick" : "normal" }))} />
+        </Suspense>
+        <p className="meta center" style={{ margin: 0 }}>روی هر قیمت بزنی، اون مغازه انتخاب یا حذف می‌شه.</p>
+      </>
+    );
+  }
+  if (layout.layout === "bargain" && bargain) {
+    const on = sel.includes(bargain.sid);
+    return (
+      <>
+        {badge}
+        <div className="gen-best bargain fadein">
+          <span className="gen-best-tag"><Icon name="tag" size={14} /> ارزون‌تر، کمی دورتر</span>
+          <span className="r1"><span className="name ellipsis">{bargain.name}</span><span className="amount">{bargain.price ? toman(bargain.price) : ""}</span></span>
+          <span className="meta">{bargain.saving ? `${toman(bargain.saving)} ارزون‌تر · ` : ""}{bargain.travel_label}</span>
+          <button className={"btn sm " + (on ? "ghost" : "")} onClick={() => onToggle(bargain.sid)}>{on ? "انتخاب شد" : "اینم بپرس"}</button>
+        </div>
+      </>
+    );
+  }
+  return layout.source === "model" ? badge : null;
 }

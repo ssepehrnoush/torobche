@@ -92,6 +92,7 @@ export default function Wizard() {
   const ctxRef = useRef<Ctx>(ctx);
   const idx = useRef(0);
   const resetting = useRef(false);
+  const pre = useRef(new Map<string, Promise<GenTurn>>()); // next screens asked for before «ادامه», by need + answers
   const data = useRef({ pid, inq, visit, need, gens });
   data.current = { pid, inq, visit, need, gens };
   const demo = new URLSearchParams(window.location.search).has("demo");
@@ -188,13 +189,28 @@ export default function Wizard() {
     window.scrollTo({ top: 0 });
   };
 
+  /** The screen after these answers: one request per need + answers, shared by the prefetch and «ادامه». */
+  const turnFor = (text: string, ans: GenAnswer[], at: number): Promise<GenTurn> => {
+    const key = JSON.stringify([text, ans]);
+    let p = pre.current.get(key);
+    if (!p) {
+      const prev = at > 0 ? data.current.gens[at - 1]?.search ?? null : null;
+      p = api.genNext({ need: text, answers: ans, ctx: ctxRef.current, known: known.current, search: prev });
+      p.catch(() => pre.current.delete(key));
+      pre.current.set(key, p);
+    }
+    return p;
+  };
+  const prefetch = (at: number, a: GenAnswer) => {
+    if (!genBusy) turnFor(need.trim(), [...answers.slice(0, at), a], at + 1);
+  };
+
   /** Ask the model for the screen that comes after these answers, and show it as screen `at`. */
   const genFetch = async (text: string, ans: GenAnswer[], at: number) => {
     setGenBusy(true);
     setGenIdx(at);
     try {
-      const prev = at > 0 ? data.current.gens[at - 1]?.search ?? null : null;
-      const r = await api.genNext({ need: text, answers: ans, ctx: ctxRef.current, known: known.current, search: prev });
+      const r = await turnFor(text, ans, at);
       known.current = r.known;
       setCtx({ ...ctxRef.current, ...r.ctx });
       setGens((g) => [...g.slice(0, at), r]);
@@ -232,6 +248,7 @@ export default function Wizard() {
     if (genBusy) return;
     lastPick.current = null;
     known.current = NOTHING_KNOWN;
+    pre.current.clear();
     setPlaced(false);
     setCtx({ ...ctxRef.current, ...NO_FILTERS });
     setNeed("");
@@ -292,6 +309,7 @@ export default function Wizard() {
             if (t) setNeed(t);
             setCtx({ ...ctxRef.current, ...NO_FILTERS });
             known.current = NOTHING_KNOWN;
+            pre.current.clear();
             setPlaced(false);
             setAnswers([]);
             setGens([]);
@@ -313,11 +331,12 @@ export default function Wizard() {
                 a: `${TRAVEL_FA[ctxRef.current.travel_mode] ?? ""} تا ${fa(ctxRef.current.range_minutes)} دقیقه` }, { travel: true })} />
           </>
         ) : (
-          <GenStep s={cur.screen} busy={genBusy} onBack={goBack} onAnswer={(a) => answerGen(genIdx, a)} onPick={openShops} />
+          <GenStep s={cur.screen} busy={genBusy} onBack={goBack} onAnswer={(a) => answerGen(genIdx, a)}
+            onIntent={(a) => prefetch(genIdx, a)} onPick={openShops} />
         ))}
 
         {step === "shops" && pid != null && (
-          <ShopsStep key={pid} pid={pid} ctx={ctx} setCtx={setCtx} picks={[]} onBack={goBack} onOpenShop={openShop}
+          <ShopsStep key={pid} pid={pid} ctx={ctx} setCtx={setCtx} picks={[]} need={need} onBack={goBack} onOpenShop={openShop}
             onAsk={(sids) => startInquiry(pid, sids)} onGo={(sids) => startVisit(pid, sids, null, false)}
             onDetails={() => setSheet({ kind: "product", pid })} />
         )}
