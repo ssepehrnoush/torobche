@@ -593,6 +593,12 @@ async def run_turn(session_id: str | None, text: str, ctx: Ctx, ui: dict) -> Asy
             sess["messages"][-1]["content"] += (
                 f"{PREFETCH_MARK} اولیه با «{pq}» (اگر نتایج مرتبط نیست یا دسته اشتباه است، خودت دوباره جستجو کن):\n"
                 + fmt_search(res) + "]")
+        elif res["facets"].get("budget_miss"):
+            # nothing of this kind in the budget: say so with its real price ranges, no model round trip
+            # (the model once answered «pick one of the options» without giving any)
+            yield budget_miss_ask(res, sess)
+            yield {"type": "done"}
+            return
     if not llm.available():
         async for ev in fallback_turn(text, ctx, sess, "no_llm"):
             yield ev
@@ -698,6 +704,17 @@ def _budget_chip(v: int) -> str:
         m = next((n for n in _NICE_MILLIONS if n * 1_000_000 >= v), _NICE_MILLIONS[-1])
         return f"تا {fa_digits(m)} میلیون"
     return f"تا {fa_digits(max(100, -(-v // 100_000) * 100))} هزار"
+
+
+def budget_miss_ask(res: dict, sess: dict) -> dict:
+    """«No phone under 1 million»: the honest answer, and budget chips taken from that kind's real prices."""
+    miss, pts = res["facets"]["budget_miss"], res["facets"]["price_points"]
+    msg = (f"در این بازهٔ قیمت {miss['category'] or 'کالایی'} پیدا نکردم"
+           + (f"؛ ارزان‌ترینش از {fa_text(str(miss['cheapest']))} تومان شروع می‌شود." if miss.get("cheapest") else "."))
+    opts = list(dict.fromkeys(_budget_chip(p) for p in pts[1:] if p))[:4]
+    sess["last_query"] = res["query"]  # the chip answer refines this search, with or without the model
+    sess["messages"].append({"role": "assistant", "content": msg + " بودجه را چقدر بگذارم؟ " + "، ".join(opts)})
+    return {"type": "ask", "message": msg, "questions": [{"question": "بودجه رو تا چقدر بالا ببرم؟", "options": opts, "multi": False}]}
 
 
 async def fallback_turn(text: str, ctx: Ctx, sess: dict, reason: str) -> AsyncIterator[dict]:
