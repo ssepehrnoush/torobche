@@ -44,8 +44,8 @@ export function ShopsStep({ pid, ctx, setCtx, picks, need, onBack, onAsk, onGo, 
     if (need === undefined) return;
     const ac = new AbortController();
     setLayout(null);
-    api.genShops(pid, ctx, need, ac.signal).then(setLayout).catch(() => {});
-    return () => ac.abort();
+    const t = window.setTimeout(() => api.genShops(pid, ctx, need, ac.signal).then(setLayout).catch(() => {}), 700);
+    return () => { window.clearTimeout(t); ac.abort(); };
   }, [pid, ctxKey]); // eslint-disable-line
 
   useEffect(() => {
@@ -108,8 +108,12 @@ export function ShopsStep({ pid, ctx, setCtx, picks, need, onBack, onAsk, onGo, 
         <div className="card empty">
           <img className="empty-art" src="/img/empty.webp" width={480} height={480} alt="" />
           <b>{range} فروشگاهی این کالا رو نداره</b>
-          <span className="meta">محدوده رو بزرگ‌تر کن{activeFilters(ctx) ? " یا شرط‌ها رو بردار" : ""}.</span>
+          <span className="meta">وسیله یا محدوده رو عوض کن{activeFilters(ctx) ? "، یا شرط‌ها رو بردار" : ""}.</span>
           <div className="chips center" style={{ marginTop: 8 }}>
+            {/* a walk too short for any shop: one tap to go by car or metro instead (the minutes stay) */}
+            {MODES.filter(([k]) => k !== ctx.travel_mode).map(([k, label, icon]) => (
+              <button key={k} className="chip" onClick={() => setCtx({ ...ctx, travel_mode: k })}><Icon name={icon} size={15} /> {label}</button>
+            ))}
             {expand.map((e) => (
               <button key={e.label} className="chip" onClick={() => setCtx(e.minutes ? { ...ctx, range_mode: "time", range_minutes: e.minutes } : { ...ctx, range_mode: "km", radius_km: e.km ?? ctx.radius_km })}>
                 {e.label} <small>{fa(e.count)} فروشگاه</small>

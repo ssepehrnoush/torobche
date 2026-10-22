@@ -13,7 +13,9 @@ export function ShopLinkSheet({ shop, onClose, toast }: { shop: InquiryShop; onC
     qr.make();
     return qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
   }, [url]);
-  const text = (shop.sms ?? "").replace(`/r/${shop.reply_token}`, url);
+  // the text exactly as the shop gets it: the SMS template's branded link, which forwards to the answer page; the QR
+  // and the button below open this server's own page, so they work in a local run too
+  const text = (shop.sms ?? "").replace(`/r/${shop.reply_token}`, `torobche.lemonai.ir/r/${shop.reply_token}`);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(url);

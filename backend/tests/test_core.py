@@ -166,4 +166,36 @@ def test_gen_box_leaves_out_what_the_person_already_said():
     from app.models import Ctx
     blocks = lambda ctx, known: _tool(ctx, known)["function"]["parameters"]["properties"]["block"]["enum"]
     assert blocks(Ctx(), {}) == ["choice", "budget", "place", "travel", "products", "compare"]
-    assert blocks(Ctx(budget_max=3_000_000), {"place": True, "travel": True}) == ["choice", "products", "compare"]
+    assert blocks(Ctx(budget_max=3_000_000), {"place": True, "travel": True, "budget": True}) == ["choice", "products", "compare"]
+
+
+@needs_db
+def test_gen_rule_mode_never_loops():
+    """Without the model: «بودجه مهم نیست» is not asked again, and a need the catalogue does not know ends on
+    «چیزی پیدا نکردم» instead of asking the same question forever."""
+    import asyncio
+    from app import genui
+    from app.models import Ctx
+    genui.llm.available = lambda: False
+    known = {"place": True, "travel": True}
+    r = asyncio.run(genui.next_screen("گوشی سامسونگ", [{"q": "بودجه", "a": "بودجه مهم نیست", "budget": 0}], Ctx(), known, None))
+    assert r["screen"]["block"] != "budget" and r["known"]["budget"]
+    r = asyncio.run(genui.next_screen("زبزقخلفغ", [], Ctx(), known, None))
+    assert r["screen"]["block"] == "products" and r["screen"]["products"] == []
+
+
+def test_gen_valid_keeps_unique_pids_from_the_results():
+    from app.genui import _valid
+    res = {"items": [{"pid": 1}, {"pid": 2}, {"pid": 3}]}
+    s = {"block": "compare", "title": "t", "pids": [1, 1]}
+    assert not _valid(s, res, {"place": True})
+    s = {"block": "compare", "title": "t", "pids": [99, 2, 2, 3, 1]}
+    assert _valid(s, res, {"place": True}) and s["pids"] == [2, 3, 1]
+    assert not _valid({"block": "budget", "title": "t"}, res, {"budget": True})
+
+
+def test_copy_label_skips_photocopiers_and_batteries():
+    from app.authenticity import product_hint
+    assert product_hint("دستگاه کپی کانن مدل IR2206", "دستگاه کپی", "کانن", 90_000_000) is None
+    assert product_hint("باتری قلمی AAA پاناسونیک", "باتری", "پاناسونیک", 100_000) is None
+    assert product_hint("ایرپاد پرو طرح پرچم آمریکا های کپی", "هدفون، هدست و هندزفری", None, 1_000_000)

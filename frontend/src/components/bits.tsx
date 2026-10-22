@@ -58,7 +58,7 @@ export function MetroStrip({ legs }: { legs: Leg[] }) {
 export function AuthBadge({ a }: { a?: Authenticity | null }) {
   if (!a) return null;
   if (a.status === "declared_copy") return <span className="tag red">غیراصل</span>;
-  if (a.status === "suspicious") return <span className="tag amber">احتمال غیراصل</span>;
+  if (a.status === "suspicious") return <span className="tag amber">احتمالاً غیراصل</span>;
   return null;
 }
 

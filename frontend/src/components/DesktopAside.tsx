@@ -20,10 +20,10 @@ export function DesktopAside() {
     return qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
   }, []);
   return (
-    <aside className="aside" aria-label="دربارهٔ خرید حضوری ترب">
+    <aside className="aside" aria-label="دربارهٔ تربچه، خرید حضوری">
       <div className="wordmark">
         <RadishLogo size={34} />
-        <b>ترب</b>
+        <b>تربچه</b>
         <i className="sep" />
         <span>خرید حضوری</span>
       </div>

@@ -169,7 +169,7 @@ async function tapEl(expr, { scroll = true, page = main } = {}) {
     const d = document.createElement('div'); d.className = '__tap'; d.style.left = (r.left + r.width / 2) + 'px'; d.style.top = (r.top + r.height / 2) + 'px';
     document.body.append(d); setTimeout(() => d.remove(), 700); return true })()`);
   await hold(0.18);
-  await page.js(`(() => { ${expr}?.click(); return true })()`);
+  await page.js(`(() => { (${expr})?.click(); return true })()`);
   await hold(0.3);
   return true;
 }

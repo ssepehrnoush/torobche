@@ -69,9 +69,14 @@ DEVICE_CATS = ("گوشی موبایل", "تبلت", "ساعت و مچ بند ه�
                "دوربین عکاسی و فیلمبرداری", "کنسول بازی")
 
 
+_TITLE_COPY = re.compile(r"(?<![\w])(های ?کپی|مستر کپی|طرح اصلی|طرح اورجینال|فیک|رپلیکا|replica|غیر ?اصل)(?![\w])")
+
+
 def _declares_copy(title: str) -> bool:
+    """A catalogue title that names itself a copy. Only explicit phrases: a photocopier («دستگاه کپی»), copy paper
+    or AAA batteries are not copies, so the shop-listing pattern (bare «کپی», «aaa») is not used here."""
     t = db.normalize_fa(title, split_alnum=False)
-    return bool(_COPY.search(t) or _BRAND_COPY.search(t))
+    return bool(_TITLE_COPY.search(t) or _BRAND_COPY.search(t))
 
 
 def _model_key(title: str) -> tuple[str, frozenset] | None:

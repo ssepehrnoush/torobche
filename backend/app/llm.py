@@ -80,9 +80,10 @@ async def check_providers(deep: bool = False) -> list[dict]:
         t0 = time.monotonic()
         try:
             if deep:
-                r = await client().post(f"{ep.base_url}/chat/completions", headers={"Authorization": f"Bearer {ep.api_key}"},
-                                        json={"model": ep.model, "messages": [{"role": "user", "content": "Reply with: ok"}],
-                                              "max_completion_tokens": 5, **ep.extra}, timeout=30)
+                async with _gate:
+                    r = await client().post(f"{ep.base_url}/chat/completions", headers={"Authorization": f"Bearer {ep.api_key}"},
+                                            json={"model": ep.model, "messages": [{"role": "user", "content": "Reply with: ok"}],
+                                                  "max_completion_tokens": 5, **ep.extra}, timeout=30)
             else:
                 r = await client().get(f"{ep.base_url}/models", headers={"Authorization": f"Bearer {ep.api_key}"}, timeout=15)
             body = r.text[:400].lower()

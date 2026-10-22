@@ -7,7 +7,7 @@ import type { InquiryState } from "./components/InquiryView";
 import { RadishLogo } from "./components/Logo";
 import { ProductSheet } from "./components/Products";
 import { ShopSheet } from "./components/ShopSheet";
-import { GenBadge, GenStep, GenWait } from "./components/wizard/GenStep";
+import { GenBadge, GenFailed, GenStep, GenWait } from "./components/wizard/GenStep";
 import { GoStep } from "./components/wizard/GoStep";
 import { InquiryStep } from "./components/wizard/InquiryStep";
 import { Progress } from "./components/wizard/Shell";
@@ -53,7 +53,10 @@ type Saved = {
 function loadSaved(): Partial<Saved> {
   try {
     const s = JSON.parse(sessionStorage.getItem(SAVE_KEY) || "{}") as Partial<Saved>;
-    return s.step && ORDER.includes(s.step) ? s : {};
+    if (!s.step || !ORDER.includes(s.step)) return {};
+    const n = s.gens?.length ?? 0;
+    if (s.step === "gen" && !n) return { ...s, step: "need", genIdx: 0 };
+    return { ...s, genIdx: Math.min(s.genIdx ?? 0, Math.max(0, n - 1)) };
   } catch {
     return {};
   }
@@ -191,7 +194,7 @@ export default function Wizard() {
 
   /** The screen after these answers: one request per need + answers, shared by the prefetch and «ادامه». */
   const turnFor = (text: string, ans: GenAnswer[], at: number): Promise<GenTurn> => {
-    const key = JSON.stringify([text, ans]);
+    const key = JSON.stringify([text, ans, ctxRef.current]);
     let p = pre.current.get(key);
     if (!p) {
       const prev = at > 0 ? data.current.gens[at - 1]?.search ?? null : null;
@@ -201,8 +204,11 @@ export default function Wizard() {
     }
     return p;
   };
+  const prefetching = useRef(false);
   const prefetch = (at: number, a: GenAnswer) => {
-    if (!genBusy) turnFor(need.trim(), [...answers.slice(0, at), a], at + 1);
+    if (genBusy || prefetching.current) return;
+    prefetching.current = true;
+    turnFor(need.trim(), [...answers.slice(0, at), a], at + 1).catch(() => {}).finally(() => { prefetching.current = false; });
   };
 
   /** Ask the model for the screen that comes after these answers, and show it as screen `at`. */
@@ -317,7 +323,9 @@ export default function Wizard() {
             genFetch(text, [], 0);
           }} />}
 
-        {step === "gen" && (genBusy || !cur ? <GenWait onBack={goBack} /> : cur.screen.block === "place" ? (
+        {step === "gen" && (genBusy ? <GenWait onBack={goBack} /> : !cur ? (
+          <GenFailed onBack={goBack} onRetry={() => genFetch(need.trim(), answers.slice(0, genIdx), genIdx)} />
+        ) : cur.screen.block === "place" ? (
           <>
             <GenBadge s={cur.screen} />
             <WhereStep ctx={ctx} placed={placed} pickPlace={pickPlace} toast={toast} onBack={goBack}
@@ -332,13 +340,13 @@ export default function Wizard() {
           </>
         ) : (
           <GenStep s={cur.screen} busy={genBusy} onBack={goBack} onAnswer={(a) => answerGen(genIdx, a)}
-            onIntent={(a) => prefetch(genIdx, a)} onPick={openShops} />
+            onIntent={(a) => prefetch(genIdx, a)} onPick={openShops} onRestart={reset} />
         ))}
 
         {step === "shops" && pid != null && (sheet?.kind === "place" ? (
           // the same «کجا» page, opened from the shops screen's conditions; «ادامه» brings the list back for the new place
           // keeps the trip settings already chosen on the shops screen, unlike a first pick
-          <WhereStep ctx={ctx} placed={placed} toast={toast} onBack={() => setSheet(null)} onNext={() => setSheet(null)}
+          <WhereStep ctx={ctx} placed={placed || !!ctx.place} toast={toast} onBack={() => setSheet(null)} onNext={() => setSheet(null)}
             pickPlace={(p) => { setPlaced(true); setCtx({ ...ctxRef.current, lat: p.lat, lon: p.lon, place: p.label }); }} />
         ) : (
           <ShopsStep key={pid} pid={pid} ctx={ctx} setCtx={setCtx} picks={[]} need={need} onBack={goBack} onOpenShop={openShop}

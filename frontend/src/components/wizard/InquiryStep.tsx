@@ -17,7 +17,7 @@ const OUTCOME: Record<Reply["outcome"], { label: string; tone: string }> = {
   closed: { label: "بسته بود", tone: "gray" },
 };
 const SCENARIOS: [string, string][] = [["", "خودکار"], ["live", "زنده"], ["confirmed", "موجود"], ["price_changed", "تغییر قیمت"], ["out_of_stock", "ناموجود"], ["no_answer", "بی‌پاسخ"]];
-const VIA: Record<string, string> = { whatsapp: "واتساپ", sms: "پیامک", bale: "بله", call: "تماس خودکار" };
+const VIA: Record<string, string> = { whatsapp: "واتساپ", sms: "پیامک", call: "تماس خودکار" };
 const CHAN_ICON: Record<string, string> = { whatsapp: "chat", sms: "chat", bale: "send", call: "phone" };
 type Chan = { channel: string; label: string; state: "sent" | "calling" | "no_answer"; real?: boolean };
 

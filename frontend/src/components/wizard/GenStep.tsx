@@ -20,6 +20,19 @@ function CopyHint({ why }: { why: string }) {
   return <span className="gen-copy"><span className="tag amber">احتمالاً غیراصل</span><span>{why}</span></span>;
 }
 
+/** Building the screen failed (network, server): say so and offer to try again, never a spinner that never ends. */
+export function GenFailed({ onBack, onRetry }: { onBack: () => void; onRetry: () => void }) {
+  return (
+    <>
+      <div className="wz-wait fadein">
+        <b>ساختن صفحهٔ بعد نشد</b>
+        <span className="meta">شاید اینترنت قطع شده؛ یه بار دیگه امتحان کن.</span>
+      </div>
+      <WizFoot onBack={onBack} next={{ label: <><Icon name="refresh" size={18} /> دوباره امتحان کن</>, onClick: onRetry }} />
+    </>
+  );
+}
+
 export function GenWait({ onBack }: { onBack: () => void }) {
   return (
     <>
@@ -35,18 +48,19 @@ export function GenWait({ onBack }: { onBack: () => void }) {
 
 /** One generated screen: a choice, a budget slider, products or a comparison. Place and travel reuse the
     fixed wizard's own steps (Wizard.tsx renders those). */
-export function GenStep({ s, busy, onBack, onAnswer, onIntent, onPick }: {
+export function GenStep({ s, busy, onBack, onAnswer, onIntent, onPick, onRestart }: {
   s: GenScreen;
   busy: boolean;
   onBack: () => void;
   onAnswer: (a: GenAnswer) => void;
   onIntent: (a: GenAnswer) => void; // the likely answer, so the next screen can be built before «ادامه»
   onPick: (pid: number) => void;
+  onRestart: () => void;
 }) {
   if (s.block === "choice") return <GenChoice s={s} busy={busy} onBack={onBack} onAnswer={onAnswer} onIntent={onIntent} />;
   if (s.block === "budget" && s.budget) return <GenBudget s={s} busy={busy} onBack={onBack} onAnswer={onAnswer} onIntent={onIntent} />;
   if (s.block === "compare" && s.compare) return <GenCompareView s={s} onBack={onBack} onPick={onPick} />;
-  return <GenProducts s={s} busy={busy} onBack={onBack} onPick={onPick} onAnswer={onAnswer} />;
+  return <GenProducts s={s} busy={busy} onBack={onBack} onPick={onPick} onAnswer={onAnswer} onRestart={onRestart} />;
 }
 
 function GenChoice({ s, busy, onBack, onAnswer, onIntent }: {
@@ -93,19 +107,20 @@ function GenBudget({ s, busy, onBack, onAnswer, onIntent }: {
           aria-label="سقف بودجه" dir="rtl" />
         <div className="gen-budget-ends"><span>{short(b.min)}</span><span className="meta">میانهٔ قیمت‌ها {short(b.median)}</span><span>{short(b.max)}</span></div>
       </div>
-      <button className="textbtn muted center" disabled={busy} onClick={() => onAnswer({ q: s.title, a: "بودجه مهم نیست" })}>بودجه مهم نیست</button>
+      <button className="textbtn muted center" disabled={busy} onClick={() => onAnswer({ q: s.title, a: "بودجه مهم نیست", budget: 0 })}>بودجه مهم نیست</button>
       <WizFoot onBack={onBack} next={{ label: <>ادامه <Icon name="left" size={18} /></>, onClick: () => onAnswer({ q: s.title, a: `تا ${toman(v)}`, budget: v }), disabled: busy }} />
     </>
   );
 }
 
-function GenProducts({ s, busy, onBack, onPick, onAnswer }: {
+function GenProducts({ s, busy, onBack, onPick, onAnswer, onRestart }: {
   s: GenScreen; busy: boolean; onBack: () => void; onPick: (pid: number) => void; onAnswer: (a: GenAnswer) => void;
+  onRestart: () => void;
 }) {
   const items = s.products ?? [];
   const [sel, setSel] = useState<number | null>(items.length === 1 ? items[0].pid : null);
   const [more, setMore] = useState("");
-  const [ask, setAsk] = useState(false);
+  const [ask, setAsk] = useState(!items.length); // nothing found: the box to say it another way is open already
   return (
     <>
       <GenBadge s={s} />
@@ -126,6 +141,9 @@ function GenProducts({ s, busy, onBack, onPick, onAnswer }: {
           </button>
         ))}
       </div>
+      {items.length > 0 && !items.some((p) => p.n_nearby) && (
+        <p className="footnote"><Icon name="info" size={13} /> هیچ‌کدوم از این‌ها این دور و بر فروشگاه نداره؛ توی صفحهٔ بعد وسیله یا محدوده رو عوض کن.</p>
+      )}
       {ask ? (
         <form className="wz-field sm fadein" onSubmit={(e) => { e.preventDefault(); if (more.trim()) onAnswer({ q: "توضیح بیشتر", a: more.trim() }); }}>
           <input autoFocus value={more} onChange={(e) => setMore(e.target.value)} placeholder="مثلاً: ارزون‌تر، یا فقط سامسونگ" aria-label="توضیح بیشتر" />
@@ -134,7 +152,9 @@ function GenProducts({ s, busy, onBack, onPick, onAnswer }: {
       ) : (
         <button className="textbtn center" onClick={() => setAsk(true)}>هیچ‌کدوم نیست؟ دقیق‌تر بگو</button>
       )}
-      <WizFoot onBack={onBack} next={{ label: <>دیدن فروشگاه‌ها <Icon name="left" size={18} /></>, onClick: () => sel != null && onPick(sel), disabled: sel == null || busy }} />
+      <WizFoot onBack={onBack} next={items.length
+        ? { label: <>دیدن فروشگاه‌ها <Icon name="left" size={18} /></>, onClick: () => sel != null && onPick(sel), disabled: sel == null || busy }
+        : { label: <><Icon name="refresh" size={18} /> از اول بنویس</>, onClick: onRestart, disabled: busy }} />
     </>
   );
 }

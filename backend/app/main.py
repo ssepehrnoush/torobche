@@ -359,6 +359,8 @@ async def gen_shops(body: GenShopsIn, request: Request):
 @app.post("/api/gen/next")
 async def gen_next(body: GenIn, request: Request):
     """Generative UI: the next wizard screen, built by the model from a fixed box of blocks."""
+    if not body.need.strip():
+        raise HTTPException(422, "need is empty")
     return await genui.next_screen(body.need, body.answers, body.ctx, body.known, body.search, client_key(request))
 
 

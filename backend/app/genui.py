@@ -56,14 +56,14 @@ def _tool(ctx: Ctx, known: dict) -> dict:
     """This turn's box: a block for something the person already said (place, travel, a budget) is not offered
     at all, so the model cannot pick it and fall back to the plain rule."""
     blocks = [b for b in BLOCKS if not ((b == "place" and known.get("place")) or (b == "travel" and known.get("travel"))
-                                        or (b == "budget" and ctx.budget_max))]
+                                        or (b == "budget" and known.get("budget")))]
     tool = json.loads(json.dumps(TOOL))
     tool["function"]["parameters"]["properties"]["block"]["enum"] = blocks
     return tool
 
 
 def _known(ctx: Ctx, known: dict) -> str:
-    budget = "نامشخص"
+    budget = "مهم نیست" if known.get("budget") else "نامشخص"
     if ctx.budget_max:
         budget = f"تا {ctx.budget_max:,} تومان"
     return "\n".join([
@@ -143,13 +143,13 @@ def rule_screen(res: dict, ctx: Ctx, known: dict, n: int) -> dict:
     if not known.get("travel"):
         return {"block": "travel", "title": "چطوری می‌ری؟", "why": "تا فقط مغازه‌هایی رو نشون بدم که زود بهشون می‌رسی."}
     pts = (res.get("facets") or {}).get("price_points") or []
-    if not ctx.budget_max and len(pts) == 5 and pts[0] and pts[-1] >= 3 * pts[0] and n < MAX_SCREENS:
+    if not known.get("budget") and len(pts) == 5 and pts[0] and pts[-1] >= 3 * pts[0] and n < MAX_SCREENS:
         return {"block": "budget", "title": "تا چقدر می‌خوای خرج کنی؟", "why": "قیمت‌های این کالا خیلی پخشه."}
     pids = [it["pid"] for it in res["items"][:4]]
     if pids:
         return {"block": "products", "title": "کدوم رو می‌خوای؟", "why": "این‌ها به نیازت نزدیک‌ترن.", "pids": pids}
-    return {"block": "choice", "title": "یه کم دقیق‌تر بگو", "why": "با این توضیح چیزی پیدا نکردم.",
-            "options": [c for c, _ in (res.get("facets") or {}).get("categories", [])[:5]] or ["هر چیزی که مشابه باشه"]}
+    return {"block": "products", "title": "چیزی پیدا نکردم", "why": "توی کاتالوگ ترب چیزی با این توضیح نبود؛ یه جور دیگه بنویس.",
+            "pids": []}
 
 
 def _valid(s: dict, res: dict, known: dict) -> bool:
@@ -160,9 +160,12 @@ def _valid(s: dict, res: dict, known: dict) -> bool:
         opts = [o for o in s.get("options") or [] if isinstance(o, str) and o.strip()]
         return 2 <= len(opts) <= 6
     if s["block"] in ("products", "compare"):
-        pids = [p for p in s.get("pids") or [] if p in ids]
+        pids = list(dict.fromkeys(p for p in s.get("pids") or [] if p in ids))
         lo, hi = (2, 3) if s["block"] == "compare" else (1, 4)
-        return known.get("place", False) and lo <= len(pids) <= hi
+        s["pids"] = pids[:hi]
+        return known.get("place", False) and lo <= len(pids)
+    if s["block"] == "budget":
+        return not known.get("budget")
     if s["block"] == "place":  # never ask again what the person already said («میدون ولیعصر رو گفتی، ولی...»)
         return not known.get("place")
     if s["block"] == "travel":
@@ -190,12 +193,17 @@ async def next_screen(need: str, answers: list[dict], ctx: Ctx, known: dict, sea
     for a in answers:  # a budget slider answer carries its number, so it never depends on parsing the text
         if isinstance(a.get("budget"), int) and a["budget"] > 0:
             ctx = ctx.model_copy(update={"budget_max": a["budget"], "budget_min": 0})
+    known["budget"] = bool(ctx.budget_max or any(isinstance(a.get("budget"), int) for a in answers))
     brand = (search or {}).get("brand")
     if (search or {}).get("q"):
         q = search["q"]
         res = await asyncio.to_thread(_search, q, ctx, brand)
     else:
         q, res = await asyncio.to_thread(_first_search, need, ctx)
+    if not res["items"] and answers:  # nothing found: the latest answer may say it better than the need did
+        q2, res2 = await asyncio.to_thread(_first_search, str(answers[-1].get("a", "")), ctx)
+        if res2["items"]:
+            q, brand, res = q2, None, res2
     screen, source = None, "rule"
     if llm.available() and len(answers) < MAX_SCREENS:
         history = "\n".join(f"- {a.get('q')}: {a.get('a')}" for a in answers) or "- هنوز چیزی نپرسیده‌ای"
@@ -223,26 +231,20 @@ async def next_screen(need: str, answers: list[dict], ctx: Ctx, known: dict, sea
             log.warning("model screen failed: %s", type(e).__name__)
     if not screen:
         screen = rule_screen(res, ctx, known, len(answers))
+    if screen["block"] == "budget" and not _budget_block(res):  # no price spread to build a slider from
+        screen, source = rule_screen(res, ctx, {**known, "budget": True}, len(answers)), "rule"
     block = screen["block"]
     out = {"block": block, "title": screen["title"], "why": screen.get("why") or "", "source": source}
     if block == "choice":
         out.update(options=[o.strip() for o in screen.get("options") or [] if isinstance(o, str) and o.strip()][:6],
                    multi=bool(screen.get("multi")))
     elif block == "budget":
-        b = _budget_block(res)
-        if not b:  # no price spread to build a slider from: show the products instead
-            return await _products_instead(res, ctx, q, brand, out, known)
-        out["budget"] = b
+        out["budget"] = _budget_block(res)
     elif block == "products":
-        out["products"] = _cards(res, [p for p in screen.get("pids") or [] if isinstance(p, int)][:4]) or _cards(res, [i["pid"] for i in res["items"][:4]])
+        pids = [p for p in screen.get("pids") or [] if isinstance(p, int)][:4]
+        out["products"] = _cards(res, pids) if pids or not res["items"] else _cards(res, [i["pid"] for i in res["items"][:4]])
     elif block == "compare":
         out["compare"] = await asyncio.to_thread(_compare, [p for p in screen["pids"] if isinstance(p, int)][:3], ctx, need)
-    return {"screen": out, "ctx": ctx.model_dump(), "known": known, "search": {"q": q, "brand": brand}}
-
-
-async def _products_instead(res: dict, ctx: Ctx, q: str, brand: str | None, out: dict, known: dict) -> dict:
-    out.update(block="products", title="کدوم رو می‌خوای؟", why="این‌ها به نیازت نزدیک‌ترن.",
-               products=_cards(res, [i["pid"] for i in res["items"][:4]]))
     return {"screen": out, "ctx": ctx.model_dump(), "known": known, "search": {"q": q, "brand": brand}}
 
 
@@ -308,7 +310,8 @@ def shops_rule(res: dict) -> dict:
     if len(clean) >= 2:
         first, second = sorted(clean, key=lambda i: i["price"])[:2]
         if first["price"] <= 0.95 * second["price"]:
-            return {"layout": "best", "title": "این یکی از همه بهتره", "why": "از بقیه آشکارا ارزون‌تره و موقع رسیدنت بازه.",
+            hours = "موقع رسیدنت بازه" if first["open_at_visit"]["state"] == "open" else "ساعت کاریش ثبت نشده، بپرس"
+            return {"layout": "best", "title": "این یکی از همه بهتره", "why": f"از بقیه آشکارا ارزون‌تره؛ {hours}.",
                     "best_sid": first["sid"], "reason": f"دست‌کم ۵٪ ارزون‌تر از بقیه، {first['travel']['label']}"}
     if len(near) >= 3:
         return {"layout": "map", "title": "از کدوم فروشگاه‌ها بپرسیم؟", "why": "قیمت‌ها نزدیک همن؛ جاشون تعیین می‌کنه."}
@@ -320,7 +323,8 @@ async def shops_layout(pid: int, ctx: Ctx, need: str, budget_key: str | None = N
     res = await asyncio.to_thread(shops.rank_shops_for_product, pid, ctx, "best", set())
     near = {i["sid"] for i in res["items"] if i["in_radius"]}
     # a shop closed when the person gets there is never «پیشنهاد من» while an open one is near
-    open_near = {i["sid"] for i in res["items"] if i["in_radius"] and i["open_at_visit"]["state"] != "closed"}
+    open_near = {i["sid"] for i in res["items"] if i["in_radius"] and i["open_at_visit"]["state"] != "closed"
+                 and not i.get("price_warning") and (i.get("authenticity") or {}).get("status") != "declared_copy"}
     out, source = None, "rule"
     if llm.available() and res["items"]:
         try:
