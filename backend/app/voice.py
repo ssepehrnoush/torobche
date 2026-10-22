@@ -50,6 +50,9 @@ async def transcribe(wav: bytes) -> str:
     body = {"model": STT_MODEL, "temperature": 0, "max_completion_tokens": 300, "messages": [{"role": "user", "content": [
         {"type": "text", "text": STT_PROMPT},
         {"type": "input_audio", "input_audio": {"data": base64.b64encode(wav).decode(), "format": "wav"}}]}]}
+    if STT_MODEL.startswith("google/gemini-3"):
+        # Gemini 3 always thinks first; for a transcript that is wasted time (4.1 s -> 3.2 s on a 10 s clip, 10-22)
+        body["reasoning"] = {"effort": "minimal"}
     t0 = time.monotonic()
     async with llm.slot():
         r = await llm.client().post(f"{ep.base_url}/chat/completions", json=body, headers=_headers(ep))
