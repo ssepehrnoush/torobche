@@ -115,8 +115,9 @@ def sms_text(shop_name: str, product_title: str, link: str) -> str:
 
 
 def call_text(shop_name: str, product_title: str) -> str:
-    """What the automated call reads out: it only points to the text, since a call cannot take the answer."""
-    return (f"سلام، وقت بخیر. از هوش مصنوعی لمون تماس می‌گیریم. یک مشتری نزدیک فروشگاه {kavenegar.fit(shop_name, 5)}، "
+    """What the automated call reads out: it only points to the text, since a call cannot take the answer.
+    It names the project (Daii's choice); only the SMS template must carry the account's own brand."""
+    return (f"سلام، وقت بخیر. از هوش مصنوعی تربچه تماس می‌گیریم. یک مشتری نزدیک فروشگاه {kavenegar.fit(shop_name, 5)}، "
             f"{kavenegar.fit(product_title, 5)} را می‌خواهد. لینک جواب برایتان پیامک شد؛ "
             "با یک لمس روی آن بگویید موجود دارید یا نه. ممنون.")
 
