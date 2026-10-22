@@ -28,15 +28,6 @@ const DEFAULT_CTX: Ctx = {
   visit: "now", installments_only: false, torob_pay_only: false, open_only: false,
   range_mode: "time", range_minutes: 20, travel_mode: "car", originality: "any",
 };
-/* Web Speech API error codes, each with what the person can actually do about it. */
-const VOICE_ERROR: Record<string, string> = {
-  "not-allowed": "اجازهٔ میکروفون داده نشده؛ از تنظیمات مرورگر اجازه بدهید یا تایپ کنید",
-  "service-not-allowed": "مرورگر شما اجازهٔ تشخیص صدا نمی‌دهد؛ لطفاً تایپ کنید",
-  "network": "سرویس تشخیص صدای مرورگر در دسترس نیست؛ لطفاً تایپ کنید",
-  "language-not-supported": "مرورگر شما تشخیص صدای فارسی ندارد؛ لطفاً تایپ کنید",
-  "no-speech": "صدایی نشنیدم؛ دوباره میکروفون را بزنید و حرف بزنید",
-  "audio-capture": "میکروفونی پیدا نشد؛ لطفاً تایپ کنید",
-};
 
 function loadCtx(): Ctx {
   try {
@@ -67,13 +58,11 @@ export default function Wizard() {
   const [visit, setVisit] = useState<{ pid: number | null; sids: number[]; confirmed: Record<number, unknown> | null; asked: boolean } | null>(null);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [listening, setListening] = useState(false);
   const session = useRef<string | null>(null);
   const ctxRef = useRef<Ctx>(ctx);
   const searched = useRef<string | null>(null); // need + preferences of the last search, to skip re-asking on «قبلی/ادامه»
   const lastNeed = useRef<string | null>(null);
   const demo = new URLSearchParams(window.location.search).has("demo");
-  const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
   useEffect(() => {
     get<Meta>("/api/meta").then(setMeta).catch(() => {});
@@ -140,7 +129,7 @@ export default function Wizard() {
             patch((a) => ({ ...a, message: ev.message, ask: ev.questions }));
             break;
           case "products":
-            patch((a) => ({ ...a, message: ev.message, products: ev.items, notice: ev.notice }));
+            patch((a) => ({ ...a, message: ev.message, products: ev.items, notice: ev.notice, suggestions: ev.suggestions }));
             break;
           case "shops":
             patch((a) => ({ ...a, message: ev.message, shopsPid: ev.pid }));
@@ -150,7 +139,7 @@ export default function Wizard() {
             startInquiry(ev.pid, ev.sids);
             break;
           case "message":
-            patch((a) => ({ ...a, message: ev.text }));
+            patch((a) => ({ ...a, message: ev.text, suggestions: ev.suggestions }));
             break;
           case "error":
             patch((a) => ({ ...a, error: ev.text }));
@@ -172,33 +161,6 @@ export default function Wizard() {
       send(need.trim(), true);
     }
     go("pick");
-  };
-
-  const listen = () => {
-    if (!SR || listening) return;
-    const rec = new SR();
-    rec.lang = "fa-IR";
-    rec.interimResults = false;
-    rec.maxAlternatives = 1;
-    rec.onresult = (e: any) => {
-      const t = e.results?.[0]?.[0]?.transcript as string | undefined;
-      if (t) {
-        setNeed(t);
-        go("where");
-      }
-    };
-    rec.onerror = (e: any) => {
-      if (e?.error === "aborted") return;
-      toast(VOICE_ERROR[e?.error] ?? "صدا تشخیص داده نشد؛ لطفاً تایپ کنید");
-    };
-    rec.onend = () => setListening(false);
-    setListening(true);
-    try {
-      rec.start();
-    } catch {
-      setListening(false);
-      toast("تشخیص صدا شروع نشد؛ لطفاً تایپ کنید");
-    }
   };
 
   const reset = () => {
@@ -252,7 +214,7 @@ export default function Wizard() {
       </header>
 
       <main className="wz-main" key={step}>
-        {step === "need" && <NeedStep need={need} setNeed={setNeed} meta={meta} listening={listening} listen={SR ? listen : undefined}
+        {step === "need" && <NeedStep need={need} setNeed={setNeed} meta={meta}
           onNext={(t) => {
             const text = (t ?? need).trim();
             if (t) setNeed(t);

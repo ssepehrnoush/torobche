@@ -17,13 +17,11 @@ const MODES: [TravelMode, string, string][] = [["walk", "walk", "پیاده"], [
 const MINUTES = [10, 20, 30, 45, 60];
 const HIT_ICON: Record<PlaceHit["kind"], string> = { place: "pin", metro: "train", mall: "store", area: "map" };
 
-export function NeedStep({ need, setNeed, meta, onNext, listen, listening }: {
+export function NeedStep({ need, setNeed, meta, onNext }: {
   need: string;
   setNeed: (s: string) => void;
   meta: Meta | null;
   onNext: (text?: string) => void;
-  listen?: () => void;
-  listening: boolean;
 }) {
   return (
     <>
@@ -31,10 +29,7 @@ export function NeedStep({ need, setNeed, meta, onNext, listen, listening }: {
       <StepHead title="چی می‌خوای بخری؟" sub="مدلش رو نمی‌دونی؟ اشکالی نداره، همون‌طور که به فروشنده می‌گی بنویس." />
       <form className="wz-field" onSubmit={(e) => { e.preventDefault(); if (need.trim()) onNext(); }}>
         <input value={need} onChange={(e) => setNeed(e.target.value)} enterKeyHint="next" aria-label="کالایی که می‌خواهید"
-          placeholder={listening ? "در حال شنیدن…" : "مثلاً: هدفون بی‌سیم ارزون"} />
-        {listen && (
-          <button type="button" className={"micbtn" + (listening ? " rec" : "")} onClick={listen} aria-label="گفتن با صدا"><Icon name="mic" size={20} /></button>
-        )}
+          placeholder="مثلاً: هدفون بی‌سیم ارزون" />
       </form>
       {meta && !meta.llm.available && (
         <div className="notice"><Icon name="info" size={16} /> دستیار هوشمند الان در دسترس نیست؛ با جستجوی ساده پیدا می‌کنم.</div>

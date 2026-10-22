@@ -22,13 +22,13 @@ SEARCH_SQL = """
 SKIP_SPEC_KEYS = {"نام محصول", "شرکت سازنده", "نام انگلیسی", "تاریخ معرفی", "مدل"}
 
 
-def _fts(query: str, category: str | None = None) -> list[dict]:
+def _fts(query: str, category: str | None = None, ops: tuple[str, ...] = ("AND", "OR")) -> list[dict]:
     units = db.query_units(query)
     if not units:
         return []
     rows: list = []
     sql = SEARCH_SQL.format(cat="AND p.category_name = ?" if category else "")
-    for op in ("AND", "OR"):
+    for op in ops:
         m = db.build_match(query, op)
         if not m:
             return []
@@ -119,6 +119,36 @@ def search_products(query: str, ctx: Ctx, category: str | None = None, brand: st
     if not rows:
         rows = _fts(query)
     total_matches = len(rows)
+    facets_rows = rows[:]
+
+    # Intent category: Persian titles lead with the product type, so the category most titles that
+    # start with the query's head words belong to is what the user means ("گوشی سامسونگ" -> phones,
+    # not the many cases whose titles merely mention the phone). It is decided before the brand and
+    # budget filters: deciding it after them let a budget below every phone turn «گوشی موبایل» into
+    # batteries and cases.
+    intent = category
+    heads = Counter(r["category_name"] for r in rows if r["head_match"])
+    if heads and not category:
+        top_cat, n_top = heads.most_common(1)[0]
+        if n_top >= 2 and n_top >= 0.4 * sum(heads.values()):
+            intent = top_cat
+    if intent:
+        # re-query inside that category: the global top 400 is crowded out by accessories. A query that is
+        # just the category's own words («گوشی موبایل», «لپ تاپ») means any of them, and most phone titles
+        # say «گوشی سامسونگ» rather than «گوشی موبایل سامسونگ», so it is matched loosely (OR); a query with a
+        # brand or model («گوشی اپل») stays strict, or a budget below every iPhone would bring up Nokias.
+        # A brand is searched on its own so its models are in the pool before the brand filter.
+        generic = set(db.normalize_fa(query).split()) <= set(db.normalize_fa(intent).split())
+        have = {x["pid"] for x in rows}
+        loose = _fts(query, intent, ("OR",)) if generic else []
+        for r in _fts(query, intent) + loose + (_fts(brand, intent) if brand else []):
+            if r["pid"] not in have:
+                have.add(r["pid"])
+                rows.append(r)
+        in_cat = [r for r in rows if r["category_name"] == intent]
+        if len(in_cat) >= 3 or (category and in_cat):
+            rows = in_cat
+    brand_rows = rows[:]
     if brand:
         bn = db.normalize_fa(brand)
         b_rows = [r for r in rows if r["brand"] and (bn in db.normalize_fa(r["brand"]) or bn in (r["title_norm"] or ""))]
@@ -133,24 +163,13 @@ def search_products(query: str, ctx: Ctx, category: str | None = None, brand: st
             rs = [r for r in rs if r["max_price_toman"] and r["max_price_toman"] >= lo]
         return rs
 
-    facets_rows = rows[:]
+    price_rows = rows[:]
     rows = in_budget(rows)
-
-    # Intent category: Persian titles lead with the product type, so the category most titles that
-    # start with the query's head words belong to is what the user means ("گوشی سامسونگ" -> phones,
-    # not the many cases whose titles merely mention the phone).
-    heads = Counter(r["category_name"] for r in rows if r["head_match"])
-    intent = category
-    if heads and not category:
-        top_cat, n_top = heads.most_common(1)[0]
-        if n_top >= 2 and n_top >= 0.4 * sum(heads.values()):
-            intent = top_cat
-            # re-query inside that category: the global top 400 can be crowded out by accessories
-            have = {x["pid"] for x in rows}
-            rows = rows + [r for r in in_budget(_fts(query, intent)) if r["pid"] not in have]
-            in_cat = [r for r in rows if r["category_name"] == intent]
-            if len(in_cat) >= 3:
-                rows = in_cat
+    # nothing of the wanted kind in the budget: say so instead of showing whatever else fits it
+    budget_miss = None
+    if price_rows and not rows and (lo or hi):
+        lows = [r["min_price_toman"] for r in price_rows if r["min_price_toman"]]
+        budget_miss = {"category": intent, "n": len(price_rows), "cheapest": min(lows) if lows else None}
 
     def text_rank(r):
         boost = 1 + 0.15 * math.log1p(r["n_shops"] or 0)
@@ -195,14 +214,16 @@ def search_products(query: str, ctx: Ctx, category: str | None = None, brand: st
     specs = key_specs([r["pid"] for r in picked], with_specs) if with_specs else {}
     items = [_card(r, near.get(r["pid"]), specs.get(r["pid"])) for r in picked]
 
+    # brands and price points come from the wanted kind of product, so the budget chips built from them
+    # fit phones when phones are asked for (they used to come from the cases that crowd the top results)
     cats = Counter(r["category_name"] for r in facets_rows[:200])
-    brands = Counter(r["brand"] for r in facets_rows[:200] if r["brand"])
-    prices = sorted(r["median_price_toman"] for r in facets_rows[:200] if r["median_price_toman"])
+    brands = Counter(r["brand"] for r in brand_rows[:300] if r["brand"])
+    prices = sorted(r["median_price_toman"] for r in price_rows[:300] if r["median_price_toman"])
     quart = [prices[int(len(prices) * q)] for q in (0.1, 0.25, 0.5, 0.75, 0.9)] if len(prices) >= 5 else prices
     return {
         "query": query, "total_matches": total_matches, "after_filters": len(rows), "items": items,
         "facets": {"categories": cats.most_common(6), "brands": brands.most_common(10), "price_points": quart,
-                   "intent_category": intent, "installment_only_items": inst_only},
+                   "intent_category": intent, "installment_only_items": inst_only, "budget_miss": budget_miss},
     }
 
 

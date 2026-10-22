@@ -11,11 +11,21 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import random
+import secrets
+import time
 from typing import AsyncIterator
 
 from . import catalog, llm, shops
 from .models import Ctx
 from .timegeo import fa_digits, fa_text, now_tehran
+
+# How a shop is reached: each shop says which channels it wants, in its own order, and the next one is
+# tried only when the previous one stays unanswered. The default is a text message whose link opens a
+# one-tap answer page (/r/<token>), so the answer comes back structured instead of as free text.
+CHANNELS = {"sms": "پیامک", "bale": "پیام بله", "call": "تماس خودکار"}
+CHANNEL_WAIT_S = 2.6  # simulated: how long one channel is given before the next is tried
+LIVE_WAIT_S = 180.0  # demo «زنده»: how long a real tap on the shop's page is awaited, over all channels
+REPLY_TTL_S = 6 * 3600
 
 OUTCOMES = ("confirmed", "price_changed", "out_of_stock", "no_answer")
 ODDS = {  # by price freshness tier
@@ -60,6 +70,82 @@ def call_script(product_title: str, price: int | None) -> list[str]:
         f"قیمت ثبت‌شده {toman_fa(price)} تومان است؛ قیمت امروز چقدر است؟" if price else "قیمت امروزش چقدر است؟",
         "امروز تا چه ساعتی باز هستید و اگر بیایم برایم نگه می‌دارید؟",
     ]
+
+
+def contact_prefs(shop_id: str) -> list[str]:
+    """The channels a shop wants to be asked on, in its order. In the real product the shop picks them in
+    its Torob seller panel; the dataset has none, so they are simulated (fixed per shop, labelled in the UI)."""
+    r = int(hashlib.sha256(f"prefs|{shop_id}".encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
+    if r < 0.50:
+        return ["sms", "call"]
+    if r < 0.75:
+        return ["bale", "sms"]
+    if r < 0.90:
+        return ["sms"]
+    return ["call", "sms"]
+
+
+def sms_text(product_title: str, price: int | None, link: str) -> str:
+    """The short text a shop gets (by text message or Bale): what is asked and the one-tap answer link."""
+    title = product_title if len(product_title) <= 60 else product_title[:57] + "…"
+    return (f"ترب: مشتری «{title}»" + (f" با قیمت {toman_fa(price)} تومان" if price else "")
+            + f" را می‌خواهد. موجود دارید؟ جواب با یک لمس: {link}")
+
+
+# Answer pages: token -> what the shop's page shows and what the shop answered. One server process
+# keeps them in memory, which is enough for an inquiry that lasts minutes.
+_pages: dict[str, dict] = {}
+
+
+def _new_page(pid: int, item: dict, product: dict) -> str:
+    now = time.monotonic()
+    for k in [k for k, v in _pages.items() if now - v["created"] > REPLY_TTL_S]:
+        del _pages[k]
+    tok = secrets.token_urlsafe(9)
+    _pages[tok] = {"created": now, "pid": pid, "sid": item["sid"], "shop": item["name"], "price": item.get("price"),
+                   "product": product["title"], "image": product.get("image"), "answer": None, "event": asyncio.Event()}
+    return tok
+
+
+def reply_page(tok: str) -> dict | None:
+    p = _pages.get(tok)
+    if not p:
+        return None
+    return {k: p[k] for k in ("shop", "price", "product", "image", "answer")}
+
+
+def submit_reply(tok: str, outcome: str, price: int | None) -> dict | None:
+    """A tap on the shop's answer page. The first answer wins (a simulated one counts)."""
+    p = _pages.get(tok)
+    if not p:
+        return None
+    if p["answer"]:
+        return {"ok": False, "answer": p["answer"]}
+    if outcome not in ("confirmed", "price_changed", "out_of_stock") or (outcome == "price_changed" and not price):
+        return {"ok": False, "error": "جواب نامعتبر"}
+    p["answer"] = {"outcome": outcome, "price": price if outcome == "price_changed" else p["price"], "real": True,
+                   "at": fa_digits(now_tehran().strftime("%H:%M"))}
+    p["event"].set()
+    return {"ok": True, "answer": p["answer"]}
+
+
+def _real_reply(item: dict, ans: dict, via: str) -> dict:
+    """The customer-side reply built from a real tap on the shop's page."""
+    price = item.get("price")
+    res = {"sid": item["sid"], "outcome": ans["outcome"], "delay_s": 0, "confirmed_price": None, "in_stock": None,
+           "hold_until": None, "hours_today": None, "installments": None, "authenticity_check": None,
+           "via": via, "real": True}
+    if ans["outcome"] == "out_of_stock":
+        res["in_stock"] = False
+        res["text"] = "مغازه‌دار از صفحهٔ جواب زد: «نداریم»."
+    else:
+        new = ans.get("price") or price
+        res["in_stock"] = True
+        res["confirmed_price"] = new
+        res["price_delta"] = (new - price) if new and price else 0
+        res["text"] = ("مغازه‌دار از صفحهٔ جواب زد: «موجوده، با همین قیمت»." if ans["outcome"] == "confirmed" else
+                       f"مغازه‌دار از صفحهٔ جواب زد: «موجوده، قیمت امروز {toman_fa(new)} تومان».")
+    return res
 
 
 def _rng(shop_id: str, pid: int) -> random.Random:
@@ -226,36 +312,79 @@ def prepare(pid: int, sids: list[int], ctx: Ctx) -> tuple[dict | None, dict, lis
              "shops": [{"sid": t["sid"], "name": t["name"], "price": t["price"], "phone": t["phone"],
                         "freshness": t["freshness"], "open_now": t["open_now"], "distance_label": t["distance_label"],
                         "authenticity": t["authenticity"],
+                        "channels": [{"k": c, "label": CHANNELS[c]} for c in contact_prefs(shops.shop(t["sid"]).shop_id)],
                         "draft": draft_message(product["title"], t["price"], ctx, t["name"], t)} for t in targets],
              "call_script": call_script(product["title"], targets[0]["price"]),
              "simulated": True,
-             "notice": "شماره‌های دادهٔ هکاتون ساختگی‌اند؛ پاسخ فروشگاه‌ها شبیه‌سازی می‌شود. در نسخهٔ واقعی همین پیام از واتس‌اپ/بله یا تماس خودکار ارسال می‌شود."}
+             "notice": "شماره‌های دادهٔ هکاتون ساختگی‌اند؛ پاسخ فروشگاه‌ها شبیه‌سازی می‌شود. در نسخهٔ واقعی هر فروشگاه در پنل فروشندهٔ ترب "
+                       "انتخاب می‌کند از چه راهی (پیامک، بله یا تماس خودکار) و به چه ترتیبی استعلام بگیرد."}
     return product, by_sid, targets, start
+
+
+async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bool, queue: asyncio.Queue) -> None:
+    """Ask one shop on its channels in its own order. A real tap on its answer page wins at any moment;
+    otherwise the simulated answer arrives on one of the channels (usually the first), or none answers."""
+    page = _pages[tok]
+    answered = plan["outcome"] not in ("no_answer", "closed")
+    answer_on = 0
+    if answered and len(channels) > 1 and random.Random(tok).random() < 0.35:
+        answer_on = 1  # the first channel goes unread, the next one gets the answer
+    for i, ch in enumerate(channels):
+        await queue.put({"type": "channel", "sid": item["sid"], "channel": ch, "label": CHANNELS[ch],
+                         "state": "calling" if ch == "call" else "sent"})
+        if live:
+            wait = LIVE_WAIT_S / len(channels)
+        elif plan["outcome"] == "closed":
+            wait = 1.0
+        else:
+            wait = plan["delay_s"] if answered and i == answer_on else CHANNEL_WAIT_S
+        try:
+            await asyncio.wait_for(page["event"].wait(), timeout=wait)
+            await queue.put({"type": "reply", **_real_reply(item, page["answer"], ch)})
+            return
+        except asyncio.TimeoutError:
+            pass
+        if not live and answered and i == answer_on:
+            page["answer"] = {"outcome": plan["outcome"], "price": plan["confirmed_price"], "real": False,
+                              "at": fa_digits(now_tehran().strftime("%H:%M"))}
+            await queue.put({"type": "reply", **plan, "via": ch})
+            return
+        await queue.put({"type": "channel", "sid": item["sid"], "channel": ch, "label": CHANNELS[ch], "state": "no_answer"})
+    if live:  # nobody tapped in time
+        plan = {**plan, "outcome": "no_answer", "in_stock": None, "confirmed_price": None, "hold_until": None,
+                "text": None, "note": "در مهلتِ دمو کسی از صفحهٔ جواب پاسخ نداد."}
+    page["answer"] = page["answer"] or {"outcome": "no_answer", "price": None, "real": False, "expired": True}
+    await queue.put({"type": "reply", **plan})
 
 
 async def run_inquiry(pid: int, sids: list[int], ctx: Ctx, forced: dict[int, str] | None = None,
                       budget_key: str | None = None) -> AsyncIterator[dict]:
     product, by_sid, targets, start = await asyncio.to_thread(prepare, pid, sids, ctx)
+    if product:
+        for sh, t in zip(start["shops"], targets):
+            sh["reply_token"] = tok = _new_page(pid, t, product)
+            sh["sms"] = sms_text(product["title"], t["price"], f"/r/{tok}")  # the page prefixes its own origin
     yield start
     if not product:
         return
     replies: list[dict] = []
-    plans = []
-    for t in targets:
-        s = shops.shop(t["sid"])
-        plans.append(simulate_reply(t, s, pid, (forced or {}).get(t["sid"]), contact_auth(t, ctx)))
     queue: asyncio.Queue = asyncio.Queue()
-
-    async def deliver(rep: dict):
-        await asyncio.sleep(rep["delay_s"])
-        await queue.put(rep)
-
-    tasks = [asyncio.create_task(deliver(p)) for p in plans]
-    for _ in plans:
-        rep = await queue.get()
-        replies.append(rep)
-        yield {"type": "reply", **rep}
-    await asyncio.gather(*tasks)
+    tasks = []
+    for sh, t in zip(start["shops"], targets):
+        s = shops.shop(t["sid"])
+        f = (forced or {}).get(t["sid"])
+        plan = simulate_reply(t, s, pid, None if f == "live" else f, contact_auth(t, ctx))
+        tasks.append(asyncio.create_task(
+            _reach(t, [c["k"] for c in sh["channels"]], plan, sh["reply_token"], f == "live", queue)))
+    try:
+        while len(replies) < len(tasks):
+            ev = await queue.get()
+            if ev["type"] == "reply":
+                replies.append({k: v for k, v in ev.items() if k != "type"})
+            yield ev
+    finally:  # the customer left mid-inquiry: stop waiting on the shops
+        for task in tasks:
+            task.cancel()
 
     confirmed = _rank_confirmed(replies, by_sid)
     best = confirmed[0] if confirmed else None

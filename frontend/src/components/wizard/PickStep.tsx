@@ -27,7 +27,7 @@ export function PickStep({ turn, busy, onBack, onSend, onPick, onRetry }: {
   }
   if (turn.ask?.length) return <Questions key={turn.id} qs={turn.ask} intro={turn.message} busy={busy} onBack={onBack} onSubmit={onSend} />;
   if (turn.products?.length) return <Products key={turn.id} turn={turn} busy={busy} onBack={onBack} onPick={onPick} onRefine={onSend} />;
-  return <Reply key={turn.id} message={turn.message ?? ""} busy={busy} onBack={onBack} onSend={onSend} />;
+  return <Reply key={turn.id} message={turn.message ?? ""} chips={turn.suggestions ?? []} busy={busy} onBack={onBack} onSend={onSend} />;
 }
 
 function Thinking({ status, onBack }: { status?: string; onBack: () => void }) {
@@ -107,12 +107,18 @@ function Products({ turn, busy, onBack, onPick, onRefine }: { turn: AgentItem; b
   );
 }
 
-function Reply({ message, busy, onBack, onSend }: { message: string; busy: boolean; onBack: () => void; onSend: (t: string) => void }) {
+/** The assistant needs more (or found nothing): its message, one-tap answers it suggested, and a free reply. */
+function Reply({ message, chips, busy, onBack, onSend }: { message: string; chips: string[]; busy: boolean; onBack: () => void; onSend: (t: string) => void }) {
   const [text, setText] = useState("");
   return (
     <>
       <StepHead title="یه کم بیشتر بگو" />
       {message && <div className="wz-say">{message}</div>}
+      {chips.length > 0 && (
+        <div className="chips">
+          {chips.map((c) => <button key={c} className="chip" disabled={busy} onClick={() => onSend(c)}>{c}</button>)}
+        </div>
+      )}
       <form className="wz-field" onSubmit={(e) => { e.preventDefault(); if (text.trim()) onSend(text.trim()); }}>
         <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="جوابت رو بنویس…" aria-label="جواب به دستیار" />
       </form>

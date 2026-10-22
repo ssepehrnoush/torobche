@@ -5,6 +5,7 @@ import { Icon } from "../icons";
 import type { Ctx, Stroll, VisitPlan } from "../types";
 import { Fold, MetroStrip, OpenText } from "./bits";
 import { Img } from "./Products";
+import { useNavPick } from "./NavPick";
 import { Sheet } from "./Sheet";
 
 const MapView = lazy(() => import("./MapView").then((m) => ({ default: m.MapView })));
@@ -21,6 +22,7 @@ export function VisitView({ pid, sids, confirmed, ctx, onOpenShop, toast }: {
   const [err, setErr] = useState(false);
   const [check, setCheck] = useState(false);
   const [stroll, setStroll] = useState<number | null>(null);
+  const nav = useNavPick();
   useEffect(() => {
     setPlan(null);
     setErr(false);
@@ -88,9 +90,7 @@ export function VisitView({ pid, sids, confirmed, ctx, onOpenShop, toast }: {
               {s.leg.legs && s.leg.legs.length > 1 && <MetroStrip legs={s.leg.legs} />}
               {s.guide.length > 1 && <div className="meta">{s.guide.slice(1, 3).map((g) => g.text.split(" (")[0]).join("، ")}</div>}
               <div className="navbtns">
-                <a className="btn ghost sm" href={s.nav.neshan} target="_blank" rel="noreferrer"><Icon name="nav" size={15} /> مسیریابی با نشان</a>
-                <a className="btn ghost sm" href={s.nav.balad} target="_blank" rel="noreferrer">بلد</a>
-                <a className="btn ghost sm" href={s.nav.google} target="_blank" rel="noreferrer">گوگل‌مپ</a>
+                <button className="btn ghost sm" onClick={() => nav.open(s.nav)}><Icon name="nav" size={15} /> مسیریابی{nav.appName ? ` با ${nav.appName}` : ""}</button>
               </div>
             </div>
           </div>
@@ -118,12 +118,13 @@ export function VisitView({ pid, sids, confirmed, ctx, onOpenShop, toast }: {
 
       {first && (
         <div className="sticky-cta">
-          <a className="btn grow" href={first.nav.neshan} target="_blank" rel="noreferrer"><Icon name="nav" size={18} /> مسیریابی تا {first.name}</a>
+          <button className="btn grow" onClick={() => nav.open(first.nav)}><Icon name="nav" size={18} /> مسیریابی تا {first.name}</button>
           <button className="btn ghost icon" onClick={share} aria-label="ارسال برنامه"><Icon name="share" size={19} /></button>
         </div>
       )}
 
       {stroll != null && pid != null && <StrollSheet pid={pid} sid={stroll} ctx={ctx} onClose={() => setStroll(null)} onOpenShop={onOpenShop} />}
+      {nav.sheet}
     </>
   );
 }
@@ -132,11 +133,13 @@ export function VisitView({ pid, sids, confirmed, ctx, onOpenShop, toast }: {
 function StrollSheet({ pid, sid, ctx, onClose, onOpenShop }: { pid: number; sid: number; ctx: Ctx; onClose: () => void; onOpenShop: (sid: number) => void }) {
   const [d, setD] = useState<Stroll | null>(null);
   const [err, setErr] = useState(false);
+  const nav = useNavPick();
   useEffect(() => {
     api.stroll(pid, sid, ctx).then(setD).catch(() => setErr(true));
   }, [pid, sid]); // eslint-disable-line
   const loop: [number, number][] = d?.anchor ? [[d.anchor.lat, d.anchor.lon], ...d.stops.map((s) => [s.lat, s.lon] as [number, number]), [d.anchor.lat, d.anchor.lon]] : [];
   return (
+    <>
     <Sheet title="مسیر گردش و خرید" onClose={onClose}>
       {err && <div className="empty">ساخت مسیر گردش ناموفق بود</div>}
       {!d && !err && <div className="shimmer" style={{ height: 260, borderRadius: 16 }} />}
@@ -162,7 +165,7 @@ function StrollSheet({ pid, sid, ctx, onClose, onOpenShop }: { pid: number; sid:
                   <button className="meta ellipsis textlink" onClick={() => onOpenShop(s.sid)}>{s.name}، {s.mall}</button>
                   <div className="row between">
                     <span className="meta"><Icon name="walk" size={13} /> {fa(s.walk_minutes)} دقیقه پیاده از توقف قبلی</span>
-                    <a className="textbtn" href={s.nav.neshan} target="_blank" rel="noreferrer">مسیریابی</a>
+                    <button className="textbtn" onClick={() => nav.open(s.nav)}>مسیریابی</button>
                   </div>
                 </div>
               </div>
@@ -172,6 +175,8 @@ function StrollSheet({ pid, sid, ctx, onClose, onOpenShop }: { pid: number; sid:
         </>
       )}
     </Sheet>
+    {nav.sheet}
+    </>
   );
 }
 

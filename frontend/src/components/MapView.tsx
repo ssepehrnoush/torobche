@@ -18,8 +18,20 @@ function Fit({ points }: { points: [number, number][] }) {
 
 const youIcon = L.divIcon({ className: "", html: '<div class="youpin"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
 
-export function MapView({ you, pins, route, onPick, small }: {
+const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+/* With a label, the person's own spot pulses (two soft rings) and names itself, so it is obvious at a
+   glance that the location was understood and the map is drawn around it. */
+const liveIcon = (label: string) => L.divIcon({
+  className: "",
+  html: `<div class="youpin live"><span class="youlabel">${esc(label)}</span></div>`,
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+});
+
+export function MapView({ you, youLabel, pins, route, onPick, small }: {
   you: { lat: number; lon: number };
+  youLabel?: string;
   pins: MapPin[];
   route?: [number, number][];
   onPick?: (id: number) => void;
@@ -31,7 +43,7 @@ export function MapView({ you, pins, route, onPick, small }: {
       <MapContainer center={[you.lat, you.lon]} zoom={14} style={{ height: "100%", width: "100%" }} zoomControl={false} attributionControl>
         <TileLayer url={TILE_URL} attribution="&copy; OpenStreetMap" maxZoom={19} />
         <Fit points={pts} />
-        <Marker position={[you.lat, you.lon]} icon={youIcon} />
+        <Marker position={[you.lat, you.lon]} icon={youLabel ? liveIcon(youLabel) : youIcon} zIndexOffset={youLabel ? 1000 : 0} />
         {route && route.length > 1 && <Polyline positions={route} pathOptions={{ color: "#e91e33", weight: 4, opacity: 0.85, dashArray: "2 9", lineCap: "round" }} />}
         {pins.map((p) => (
           <Marker
