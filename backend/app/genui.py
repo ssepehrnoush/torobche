@@ -149,8 +149,10 @@ def _valid(s: dict, res: dict, known: dict) -> bool:
         pids = [p for p in s.get("pids") or [] if p in ids]
         lo, hi = (2, 3) if s["block"] == "compare" else (1, 4)
         return known.get("place", False) and lo <= len(pids) <= hi
+    if s["block"] == "place":  # never ask again what the person already said («میدون ولیعصر رو گفتی، ولی...»)
+        return not known.get("place")
     if s["block"] == "travel":
-        return bool(known.get("place"))
+        return bool(known.get("place")) and not known.get("travel")
     return True
 
 

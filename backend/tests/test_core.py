@@ -141,3 +141,12 @@ def test_map_areas_and_tapped_points():
     desert = gazetteer.at(35.55, 51.90)  # far east of the city: nothing near, nothing listed
     assert desert["near"] is None and desert["shops_nearby"] == 0
 
+
+
+def test_gen_never_reasks_a_known_place_or_travel():
+    from app.genui import _valid
+    res = {"items": []}
+    assert not _valid({"block": "place", "title": "کجا؟"}, res, {"place": True, "travel": False})
+    assert _valid({"block": "place", "title": "کجا؟"}, res, {"place": False, "travel": False})
+    assert not _valid({"block": "travel", "title": "چطوری؟"}, res, {"place": True, "travel": True})
+    assert _valid({"block": "travel", "title": "چطوری؟"}, res, {"place": True, "travel": False})
