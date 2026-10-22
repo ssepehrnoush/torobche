@@ -52,6 +52,16 @@ SYSTEM = """تو طراحِ صفحه‌های یک دستیارِ خریدِ ح�
 قاعده‌ها: هر چیزی که کاربر گفته یا جواب داده را دوباره نپرس. کم‌ترین تعدادِ صفحه را بساز؛ اگر نیاز روشن است مستقیم برو سراغِ products. گزینه‌ها و pidها را فقط از دادهٔ زیر بردار و از خودت نساز. اگر جوابِ کاربر چیزِ دیگری برای جستجو خواست، search (و اگر برند گفت brand) را بده. title و why فارسیِ خودمانی و کوتاه، بدونِ خطِ تیرهٔ بلند و ایموجی."""
 
 
+def _tool(ctx: Ctx, known: dict) -> dict:
+    """This turn's box: a block for something the person already said (place, travel, a budget) is not offered
+    at all, so the model cannot pick it and fall back to the plain rule."""
+    blocks = [b for b in BLOCKS if not ((b == "place" and known.get("place")) or (b == "travel" and known.get("travel"))
+                                        or (b == "budget" and ctx.budget_max))]
+    tool = json.loads(json.dumps(TOOL))
+    tool["function"]["parameters"]["properties"]["block"]["enum"] = blocks
+    return tool
+
+
 def _known(ctx: Ctx, known: dict) -> str:
     budget = "نامشخص"
     if ctx.budget_max:
@@ -194,7 +204,7 @@ async def next_screen(need: str, answers: list[dict], ctx: Ctx, known: dict, sea
         try:
             llm.check_session_budget(budget_key)
             msg = await asyncio.wait_for(llm.chat([{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
-                                                  tools=[TOOL], tool_choice={"type": "function", "function": {"name": "render_screen"}},
+                                                  tools=[_tool(ctx, known)], tool_choice={"type": "function", "function": {"name": "render_screen"}},
                                                   temperature=0.2, max_tokens=500), timeout=LLM_TIMEOUT_S)
             call = (msg.get("tool_calls") or [{}])[0].get("function", {})
             s = json.loads(call.get("arguments") or "{}")

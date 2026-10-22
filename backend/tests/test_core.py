@@ -159,3 +159,11 @@ def test_copy_hint_from_the_title_and_model_code():
     assert _model_key("گوشی سامسونگ (ویتنام) S25 Ultra 5G | حافظه 256 رم 12 گیگابایت") == ("s 25", frozenset({"ultra"}))
     assert _model_key("لپ تاپ ایسوس i7 نسل 12") is None  # the processor is not the model
     assert _model_key("تلویزیون ال جی QLED Ultra HD 4K") is None
+
+
+def test_gen_box_leaves_out_what_the_person_already_said():
+    from app.genui import _tool
+    from app.models import Ctx
+    blocks = lambda ctx, known: _tool(ctx, known)["function"]["parameters"]["properties"]["block"]["enum"]
+    assert blocks(Ctx(), {}) == ["choice", "budget", "place", "travel", "products", "compare"]
+    assert blocks(Ctx(budget_max=3_000_000), {"place": True, "travel": True}) == ["choice", "products", "compare"]
