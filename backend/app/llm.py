@@ -7,7 +7,6 @@ import json
 import logging
 import time
 from collections import deque
-from contextlib import asynccontextmanager
 
 import httpx
 
@@ -101,14 +100,6 @@ async def _chat(messages, tools, tool_choice, temperature, max_tokens, json_mode
     async with _gate:
         await _rate_wait()
         return await _chat_unlocked(messages, tools, tool_choice, temperature, max_tokens, json_mode)
-
-
-@asynccontextmanager
-async def slot():
-    """A turn on the shared key for calls that are not plain chat (voice): same queue, same per-minute cap."""
-    async with _gate:
-        await _rate_wait()
-        yield
 
 
 async def _chat_unlocked(messages, tools, tool_choice, temperature, max_tokens, json_mode) -> dict:

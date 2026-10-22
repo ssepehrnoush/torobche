@@ -8,14 +8,13 @@ import time
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import agent, catalog, config, contact, db, gazetteer, llm, shops, stroll, visit, voice
+from . import agent, catalog, config, contact, db, gazetteer, llm, shops, stroll, visit
 from . import travel
 from .agent import fmt_shops, toman
 from .models import Ctx
@@ -93,35 +92,6 @@ def place_areas():
 def place_at(lat: float, lon: float):
     """A point tapped on the map: the nearest landmark's name and the shops within a short walk."""
     return gazetteer.at(lat, lon)
-
-
-# ---------------------------------------------------------------------------------------
-# Voice: the browser records WAV, Gemini writes it down, gpt-audio reads the answer back
-# ---------------------------------------------------------------------------------------
-@app.post("/api/voice/stt")
-async def voice_stt(request: Request):
-    wav = await request.body()
-    if not wav.startswith(b"RIFF") or len(wav) > voice.MAX_AUDIO_BYTES:
-        raise HTTPException(400, "expected a WAV recording under a minute")
-    if not voice.available():
-        raise HTTPException(503, "voice is off")
-    try:
-        return {"text": await voice.transcribe(wav)}
-    except (llm.LLMUnavailable, httpx.HTTPError, KeyError, ValueError) as e:
-        log.warning("stt failed: %s", str(e)[:200])
-        raise HTTPException(503, "speech recognition failed")
-
-
-class SpeakIn(BaseModel):
-    text: str = Field(min_length=1, max_length=1500)
-
-
-@app.post("/api/voice/tts")
-async def voice_tts(body: SpeakIn):
-    if not voice.available():
-        raise HTTPException(503, "voice is off")
-    return StreamingResponse(voice.speak(body.text), media_type="application/octet-stream",
-                             headers={"Cache-Control": "no-store", "X-Audio-Format": f"pcm16; rate={voice.TTS_RATE}"})
 
 # ---------------------------------------------------------------------------------------
 # Agent chat
