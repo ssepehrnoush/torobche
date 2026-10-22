@@ -1,7 +1,8 @@
 """Images for the README, made from the recorded demo (record.mjs), so every screen in them is a real one:
 
     assets/screens.jpg   six phone screens of one purchase, with a caption under each
-    assets/poster.jpg    the video's opening frame with a play button, linking to the video
+    assets/preview.webp  the whole walkthrough at 8x in about half a minute, looping, silent (it plays in the README;
+                         the full video with its voice is linked under it)
 
     python -I deploy/video/readme_images.py   (after record.mjs and build.py)
 """
@@ -13,7 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 REC = ROOT / "_video" / "rec"
@@ -75,18 +76,12 @@ def main() -> None:
     subprocess.run(["node", str(Path(__file__).with_name("render.mjs")), str(page)], check=True, timeout=300)
     Image.open(page.with_suffix(".png")).convert("RGB").save(ASSETS / "screens.jpg", quality=88, optimize=True, progressive=True)
 
-    # poster: the video's first frame after the intro card, with a round play button in the middle
+    # the walkthrough without the intro and outro cards, 8x faster, 10 frames a second, as an animated WebP
     video = ROOT / "_video" / "out" / "torobche-demo.mp4"
-    still = WORK / "poster_src.png"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "9", "-i", str(video), "-frames:v", "1", str(still)], check=True)
-    im = Image.open(still).convert("RGB").resize((1280, 720), Image.LANCZOS)
-    layer = Image.new("RGBA", im.size, (0, 0, 0, 0))
-    d = ImageDraw.Draw(layer)
-    cx, cy, r = 640, 360, 74
-    d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(233, 30, 51, 235))
-    d.polygon([(cx - 22, cy - 36), (cx - 22, cy + 36), (cx + 40, cy)], fill=(255, 255, 255, 255))
-    Image.alpha_composite(im.convert("RGBA"), layer).convert("RGB").save(ASSETS / "poster.jpg", quality=88, optimize=True)
-    for p in ("screens.jpg", "poster.jpg"):
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "3.4", "-t", str(tl["end"] / 1000 - 0.4), "-i", str(video),
+                    "-vf", "setpts=PTS/8,fps=10,scale=880:-1:flags=lanczos", "-an", "-loop", "0",
+                    "-c:v", "libwebp_anim", "-quality", "62", "-compression_level", "5", str(ASSETS / "preview.webp")], check=True)
+    for p in ("screens.jpg", "preview.webp"):
         print(p, f"{(ASSETS / p).stat().st_size / 1e3:.0f} KB")
 
 

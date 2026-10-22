@@ -22,7 +22,7 @@
   <img src="https://img.shields.io/badge/SQLite-FTS5-003B57?logo=sqlite&logoColor=white" alt="SQLite FTS5">
   <img src="https://img.shields.io/badge/deployed_on-Liara-7C3AED" alt="Liara">
   <img src="https://img.shields.io/badge/AI-BoxAPI_%2B_OpenAI_backup-10A37F" alt="BoxAPI و OpenAI">
-  <img src="https://img.shields.io/badge/tests-27_passing-2EA44F" alt="۲۷ تست">
+  <img src="https://img.shields.io/badge/tests-38_passing-2EA44F" alt="۳۸ تست">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT">
 </p>
 
@@ -32,7 +32,15 @@
 
 ## ویدیوی دمو
 
-%%VIDEO%%
+<p align="center">
+  <a href="https://torobche.liara.run/demo.mp4"><img src="assets/preview.webp" alt="کل مسیر یک خرید با تربچه در نیم دقیقه؛ برای دیدن ویدیوی کامل با صدا بزنید" width="100%"></a>
+</p>
+
+<p align="center">
+  <a href="https://torobche.liara.run/demo.mp4"><img src="https://img.shields.io/badge/%E2%96%B6%20watch%20the%20full%20video-4%20min%2C%20with%20voice-E91E33?style=for-the-badge" alt="ویدیوی کامل با صدا"></a>
+</p>
+
+<p align="center"><sub>بالا کل مسیر با سرعت ۸ برابر و بی‌صداست. ویدیوی کامل با صدا (حدود ۴ دقیقه) با همین دکمه در مرورگر پخش می‌شود؛ فایلش در <a href="https://github.com/ssepehrnoush/torobche/releases/tag/demo-video">Release</a> هم هست.</sub></p>
 
 <sub>ضبط‌شده از اجرای واقعی همین کد، با هوش مصنوعی واقعی و دادهٔ واقعی ترب، با ساعت ثابت شنبه ۱۱ صبح تا مغازه‌ها باز باشند. صدا: gpt-audio. سناریو در <a href="VIDEO-SCRIPT.md">VIDEO-SCRIPT.md</a>، و ابزار ساختش در <a href="deploy/video">deploy/video</a>.</sub>
 

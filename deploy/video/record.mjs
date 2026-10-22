@@ -252,7 +252,13 @@ await endScene(0);
 
 // 3) products
 beginScene("products");
-await waitFor(`${ready} && document.querySelectorAll('.wz-prod').length >= 2`);
+for (let i = 0; i < 3; i++) {
+  await waitFor(`${ready} && document.querySelector('.gen-badge')`);
+  if (await js("document.querySelectorAll('.wz-prod').length >= 2")) break;
+  // the model asked one more thing (e.g. which model): leave the pick to the assistant, as a buyer who does not know would
+  await hold(1.2);
+  await tapEl(byText("فرقی نمی‌کنه", "button"));
+}
 await hold(0.5);
 await say();
 await hold(1.4);
@@ -355,6 +361,9 @@ await endScene(0);
 // 8) back on the customer's phone: the answer and its reservation code have arrived; the rest come in
 beginScene("replies");
 screen = main;
+// the shopkeeper's phone is done: close it, two live pages make every screenshot of the first one slow
+shop.ws.close();
+await fetch(`http://127.0.0.1:${PORT}/json/close/${created.id}`).catch(() => {});
 if (await js("!!document.querySelector('.sheet')")) await tapEl("document.querySelector('.sheet .iconbtn[aria-label=\"بستن\"]') || document.querySelector('.backdrop')", { scroll: false });
 await waitFor("document.querySelector('.wz-hold')", 15000, false);
 await js("document.querySelector('.wz-hold')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); true");
