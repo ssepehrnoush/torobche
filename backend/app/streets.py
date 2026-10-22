@@ -7,7 +7,7 @@ down, a leg falls back to the dotted straight line the map drew before, so a dem
 from __future__ import annotations
 
 import logging
-import time
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 
@@ -15,8 +15,7 @@ log = logging.getLogger("streets")
 URL = "https://routing.openstreetmap.de/routed-{profile}/route/v1/driving/{coords}"
 PROFILES = {"walk": "foot", "car": "car"}  # leg mode -> routing profile; transit has none
 UA = "torobche-hackathon-demo (github.com/ssepehrnoush)"  # the service's fair-use policy asks for one
-TIMEOUT_S = 4.0
-BUDGET_S = 6.0  # every request of one plan together
+TIMEOUT_S = 4.0  # the runs of one plan are asked at the same time, so this bounds the whole plan
 _cache: dict[tuple, list[list[float]]] = {}
 
 
@@ -55,10 +54,7 @@ def paths(origin: tuple[float, float], stops: list[dict]) -> list[dict]:
         else:
             runs.append((mode, [prev, pt]))
         prev = pt
-    deadline = time.monotonic() + BUDGET_S
-    out = []
-    for mode, pts in runs:
-        profile = PROFILES.get(mode)
-        line = _route(profile, pts) if profile and time.monotonic() < deadline else None
-        out.append({"mode": mode, "real": line is not None, "points": line or [list(p) for p in pts]})
-    return out
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        lines = list(ex.map(lambda r: _route(PROFILES[r[0]], r[1]) if r[0] in PROFILES else None, runs))
+    return [{"mode": mode, "real": line is not None, "points": line or [list(p) for p in pts]}
+            for (mode, pts), line in zip(runs, lines)]

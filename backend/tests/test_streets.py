@@ -15,6 +15,6 @@ def test_legs_travelled_the_same_way_share_one_line_and_metro_stays_straight(mon
 
     monkeypatch.setattr(streets, "_route", fake_route)
     out = streets.paths((1.0, 1.0), [stop(2, 2, "walk"), stop(3, 3, "walk"), stop(4, 4, "car"), stop(5, 5, "transit")])
-    assert asked == [("foot", 3), ("car", 2)]  # one request per run, none for the metro leg
+    assert sorted(asked) == [("car", 2), ("foot", 3)]  # one request per run, none for the metro leg
     assert [(p["mode"], p["real"]) for p in out] == [("walk", True), ("car", False), ("transit", False)]
     assert out[1]["points"] == [[3, 3], [4, 4]]  # the failed run falls back to the straight line
