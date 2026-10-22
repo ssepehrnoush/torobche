@@ -17,18 +17,32 @@ const AUTH_DIR = new URL("./auth/", import.meta.url).pathname;
 const log = pino({ level: "warn" });
 
 let sock = null;
-let status = "STARTING"; // STARTING, SCAN_QR_CODE (waiting to be linked), WORKING, LOGGED_OUT
+let status = "IDLE"; // IDLE (not linked, waiting for a pairing request), STARTING, SCAN_QR_CODE, WORKING, LOGGED_OUT
 let me = null;
+let gen = 0; // each connection's number: events of a retired socket are ignored
+let qrReady = null; // settles once the current socket can take a pairing request
+
+const linked = () => fs.existsSync(new URL("./auth/creds.json", import.meta.url)) &&
+  JSON.parse(fs.readFileSync(new URL("./auth/creds.json", import.meta.url), "utf8")).registered === true;
 
 async function connect() {
+  const my = ++gen;
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-  sock = makeWASocket({ auth: state, logger: log, browser: Browsers.ubuntu("Chrome"), markOnlineOnConnect: false, syncFullHistory: false });
-  sock.ev.on("creds.update", saveCreds);
-  sock.ev.on("connection.update", ({ connection, lastDisconnect, qr }) => {
-    if (qr) status = "SCAN_QR_CODE";
+  const s = makeWASocket({ auth: state, logger: log, browser: Browsers.ubuntu("Chrome"), markOnlineOnConnect: false, syncFullHistory: false });
+  sock = s;
+  status = "STARTING";
+  let ready;
+  qrReady = new Promise((r) => (ready = r));
+  s.ev.on("creds.update", saveCreds);
+  s.ev.on("connection.update", ({ connection, lastDisconnect, qr }) => {
+    if (my !== gen) return;
+    if (qr) {
+      status = "SCAN_QR_CODE";
+      ready();
+    }
     if (connection === "open") {
       status = "WORKING";
-      me = sock.user?.id ?? null;
+      me = s.user?.id ?? null;
       console.log("whatsapp connected");
     }
     if (connection === "close") {
@@ -37,11 +51,30 @@ async function connect() {
       if (code === DisconnectReason.loggedOut) { // unlinked from the phone: forget it, so a new pairing can start
         fs.rmSync(AUTH_DIR, { recursive: true, force: true });
         me = null;
+        status = "LOGGED_OUT";
+        return;
       }
-      status = code === DisconnectReason.loggedOut ? "LOGGED_OUT" : "STARTING";
-      setTimeout(connect, 3000);
+      if (!s.authState.creds.registered) { // nobody linked in time: wait for the next pairing request instead of
+        status = "IDLE"; //                     churning connections, which would void a code already handed out
+        return;
+      }
+      setTimeout(() => my === gen && connect(), 3000); // linked: a dropped line or WhatsApp's restart after linking
     }
   });
+}
+
+/** A fresh connection for each pairing request, so the code stays good for that connection's whole life. */
+async function pair(phone) {
+  gen++; // retire the old socket before it closes
+  try {
+    sock?.end?.(undefined);
+  } catch {
+    /* already closed */
+  }
+  fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+  await connect();
+  await Promise.race([qrReady, new Promise((_, no) => setTimeout(() => no(new Error("whatsapp did not answer")), 20_000))]);
+  return sock.requestPairingCode(phone);
 }
 
 const allowed = (req) => {
@@ -82,8 +115,8 @@ http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/default/auth/request-code") {
       const phone = String((await body(req)).phoneNumber || "").replace(/\D/g, "");
       if (!phone) return send(res, 400, { message: "phoneNumber missing" });
-      if (sock?.authState?.creds?.registered) return send(res, 409, { message: "already linked" });
-      return send(res, 201, { code: await sock.requestPairingCode(phone) });
+      if (status === "WORKING") return send(res, 409, { message: "already linked" });
+      return send(res, 201, { code: await pair(phone) });
     }
     if (status !== "WORKING") return send(res, 503, { message: `whatsapp ${status}` });
     if (req.method === "GET" && url.pathname === "/api/contacts/check-exists") {
@@ -104,4 +137,4 @@ http.createServer(async (req, res) => {
   }
 }).listen(PORT, "127.0.0.1", () => console.log(`wa gateway on 127.0.0.1:${PORT}`));
 
-connect();
+if (linked()) connect(); // not linked yet: stay idle until a pairing code is asked for
