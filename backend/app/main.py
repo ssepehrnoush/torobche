@@ -8,6 +8,8 @@ import time
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
+import mimetypes
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
@@ -392,6 +394,8 @@ async def visit_plan(body: VisitIn):
 # ---------------------------------------------------------------------------------------
 # Static front end (built by Vite into frontend/dist)
 # ---------------------------------------------------------------------------------------
+mimetypes.add_type("image/webp", ".webp")  # the container's own table lacks it; the demo's mascots are WebP
+
 if config.STATIC_DIR.is_dir():
     assets = config.STATIC_DIR / "assets"
     if assets.is_dir():
