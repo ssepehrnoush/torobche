@@ -274,7 +274,7 @@ await waitFor("document.querySelectorAll('.wz-shop').length >= 1 && document.que
 await hold(0.8);
 await say();
 await untilSpoken(-1.0);
-await smoothScroll(330, 1.6);
+await smoothScroll(490, 1.8); // past the map strip to the cards
 await say();
 await hold(2.5);
 await js("window.scrollTo({ top: 0, behavior: 'smooth' }); true");
@@ -285,7 +285,14 @@ await tapEl("[...document.querySelectorAll('.wz-cond button')].find((b) => b.tex
 await hold(0.8);
 await tapEl(byText("تا ۳۰ دقیقه", ".wz-cond-pop button"), { scroll: false });
 await waitFor("document.querySelectorAll('.wz-shop').length >= 1 && document.querySelector('.gen-best, .gen-badge')", 20000);
-await endScene();
+// the map strip opens full size: each shop only its price, the person the hopping radish
+await untilSpoken(-0.6);
+await tapEl(byText("فروشگاه‌ها روی نقشه", ".wz-mapbtn"), { scroll: false });
+await hold(0.5);
+await say();
+await untilSpoken(0.6);
+await tapEl(byText("کوچیک کن", ".wz-mapbtn"), { scroll: false });
+await endScene(0.3);
 
 // 5) finding the shop inside the passage: a near shop that sits in a mall
 beginScene("mall");
