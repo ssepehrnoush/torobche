@@ -1,5 +1,4 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { MapPreview } from "../MapPreview";
 import { api } from "../../api";
 import { fa, short, shortPlace, toman } from "../../fmt";
 import { Icon } from "../../icons";
@@ -163,19 +162,24 @@ function ShopMap({ near, ctx, sel, cheapest, onToggle }: {
   // the way from the radish to the first ticked shop (or the nearest), along the streets like a map app's directions
   const to = sel.find((s) => near.some((i) => i.sid === s)) ?? near[0]?.sid;
   useEffect(() => {
-    if (!open || !to) return;
+    if (!to) return;
     let alive = true;
     api.way(to, ctx).then((w) => alive && setWay(w)).catch(() => alive && setWay(null));
     return () => { alive = false; };
-  }, [open, to, ctx.lat, ctx.lon, ctx.travel_mode]); // eslint-disable-line
-  if (!open) return <div className="wz-shopmap"><MapPreview you={{ lat: ctx.lat, lon: ctx.lon }} pins={pins} onOpen={() => setOpen(true)} height={STRIP_H} /></div>;
+  }, [to, ctx.lat, ctx.lon, ctx.travel_mode]); // eslint-disable-line
+  // one real map: a still strip like Torob's (blue pins, the radish, the way), opening in place to the full map
+  const shown = open ? pins : pins.map((p) => ({ ...p, tone: p.tone === "closed" ? "closed" as const : "normal" as const }));
   return (
-    <div className="wz-shopmap">
-      <Suspense fallback={<div className="shimmer mapbox" style={{ height: OPEN_H }} />}>
-        <MapView you={{ lat: ctx.lat, lon: ctx.lon }} pins={pins} onPick={onToggle} height={OPEN_H} chips paths={way ? [way] : undefined} />
+    <div className={"wz-shopmap" + (open ? " open" : "")} onClick={open ? undefined : () => setOpen(true)}>
+      <Suspense fallback={<div className="shimmer mapbox" style={{ height: STRIP_H }} />}>
+        <MapView you={{ lat: ctx.lat, lon: ctx.lon }} pins={shown} onPick={open ? onToggle : undefined} height={open ? OPEN_H : STRIP_H}
+          chips={open} still={!open} paths={way ? [way] : undefined} />
       </Suspense>
-      <button className="wz-mapbtn" onClick={() => setOpen(false)} aria-expanded="true">
-        <Icon name="up" size={16} /> کوچیک کن
+      <button className="wz-mapbtn" onClick={(e) => { e.stopPropagation(); setOpen(!open); }} aria-expanded={open}>
+        {open ? <Icon name="up" size={16} /> : (
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 9V3h6M3 3l9 9" /></svg>
+        )}
+        {open ? "کوچیک کن" : "فروشگاه‌ها روی نقشه"}
       </button>
     </div>
   );

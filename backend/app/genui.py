@@ -141,7 +141,7 @@ def rule_screen(res: dict, ctx: Ctx, known: dict, n: int) -> dict:
     if not known.get("place"):
         return {"block": "place", "title": "کجا می‌خوای خرید کنی؟", "why": "تا مغازه‌های همون دور و بر رو پیدا کنم."}
     if not known.get("travel"):
-        return {"block": "travel", "title": "چطوری می‌ری؟", "why": "تا فقط مغازه‌هایی رو نشون بدم که زود بهشون می‌رسی."}
+        return {"block": "travel", "title": "با چی می‌خوای بری؟", "why": "تا فقط مغازه‌هایی رو نشون بدم که زود بهشون می‌رسی."}
     pts = (res.get("facets") or {}).get("price_points") or []
     if not known.get("budget") and len(pts) == 5 and pts[0] and pts[-1] >= 3 * pts[0] and n < MAX_SCREENS:
         return {"block": "budget", "title": "تا چقدر می‌خوای خرج کنی؟", "why": "قیمت‌های این کالا خیلی پخشه."}

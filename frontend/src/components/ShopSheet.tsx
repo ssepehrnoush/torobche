@@ -146,14 +146,14 @@ function Guide({ g, shop, onOpenShop }: { g: MallGuide; shop: string; onOpenShop
   const [story, setStory] = useState(false);
   return (
     <div className="stack" style={{ gap: 12 }}>
-      <button className="mstory-open" onClick={() => setStory(true)}>
+      {!story && <button className="mstory-open" onClick={() => setStory(true)}>
         <img src="/reach/story_entrance.webp" alt="" />
         <span className="grow stack" style={{ gap: 0 }}>
           <b>راهِ رسیدن به مغازه رو ببین</b>
           <span className="meta">از در پاساژ تا جلوی همین واحد، در سه قدم</span>
         </span>
         <Icon name="left" size={18} />
-      </button>
+      </button>}
       {story && <MallStory g={g} shop={shop} onClose={() => setStory(false)} />}
       <div className="guidewrap">
         <ol className="guide grow">

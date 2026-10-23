@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { fa } from "../fmt";
 import { Icon } from "../icons";
 import type { MallGuide } from "../types";
 
-/* The way to a shop inside its mall as a short story: three illustrated cards (the radish at the door, in the lift
+/* The way to a shop inside its mall as a short story, opening in place inside the shop's page: three illustrated cards (the radish at the door, in the lift
    with its floor counting up, in front of the shop with its unit plate), each with one plain sentence from the
    shop's own address in Torob's data. They advance by themselves; a tap goes on (the left half) or back. */
 
@@ -50,8 +49,8 @@ export function MallStory({ g, shop, onClose }: { g: MallGuide; shop: string; on
   // the lift's display counts from the ground floor to the shop's
   const shown = f == null ? null : Math.round(Math.min(1, t / 1.6) * f);
 
-  return createPortal(
-    <div className="mstory" data-card={i} role="dialog" aria-label={`راه رسیدن به ${shop} در ${mall}`}>
+  return (
+    <div className="mstory fadein" data-card={i} role="dialog" aria-label={`راه رسیدن به ${shop} در ${mall}`}>
       <img key={c.img} className="mstory-img" src={`/reach/${c.img}.webp`} alt="" />
       <div className="mstory-top">
         <div className="mstory-bars">
@@ -74,7 +73,6 @@ export function MallStory({ g, shop, onClose }: { g: MallGuide; shop: string; on
       <button className="mstory-tap next" onClick={() => go(1)} aria-label="بعدی" />
       <button className="mstory-tap back" onClick={() => go(-1)} aria-label="قبلی" />
       <p className="mstory-src">از روی نشانی همین فروشگاه در دادهٔ ترب</p>
-    </div>,
-    document.body,
+    </div>
   );
 }

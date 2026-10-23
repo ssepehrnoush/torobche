@@ -525,7 +525,7 @@ async def run_inquiry(pid: int, sids: list[int], ctx: Ctx, forced: dict[int, str
         f = (forced or {}).get(t["sid"])
         plan = simulate_reply(t, s, pid, None if f == "live" else "confirmed" if f == "on_call" else f, contact_auth(t, ctx))
         if f == "on_call":
-            plan = {**plan, "answer_last": True, "delay_s": 6.5}  # long enough to see the call
+            plan = {**plan, "answer_last": True, "delay_s": 19.5}  # the whole automated call plays, then the answer
         tasks.append(asyncio.create_task(
             _reach(t, [c["k"] for c in sh["channels"]], plan, sh["reply_token"], f == "live", queue, phones.get(t["sid"]))))
     try:

@@ -19,6 +19,23 @@ export const COLOURS: Record<string, string> = {
   O: "#b3132b", R: "#f2475d", H: "#ff9aa8", E: "#3a1820", C: "#ff8094", S: "#8f1023", L: "#6fbc23", l: "#4f9418",
 };
 
+/** Any pixel art (one letter per pixel, a colour per letter) as an SVG, crisp at any size. */
+export function pixelSvg(art: string[], colours: Record<string, string>, width: number): string {
+  const out: string[] = [];
+  art.forEach((row, y) => {
+    let x = 0;
+    while (x < row.length) {
+      const c = row[x];
+      let w = 1;
+      while (x + w < row.length && row[x + w] === c) w++;
+      if (colours[c]) out.push(`<rect x="${x}" y="${y}" width="${w}" height="1" fill="${colours[c]}"/>`);
+      x += w;
+    }
+  });
+  const W = art[0].length, H = art.length;
+  return `<svg viewBox="0 0 ${W} ${H}" width="${width}" height="${Math.round((width * H) / W)}" shape-rendering="crispEdges" aria-hidden="true">${out.join("")}</svg>`;
+}
+
 function pixels(): string {
   const out: string[] = [];
   ART.forEach((row, y) => {

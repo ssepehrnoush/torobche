@@ -165,6 +165,8 @@ export function WhereStep({ ctx, placed, pickPlace, toast, onBack, onNext }: {
   );
 }
 
+const HOW_SHORT: Record<string, string> = { walk: "پیاده", car: "با ماشین", transit: "با مترو و اتوبوس" };
+
 export function HowStep({ ctx, setCtx, onFilters, onBack, onNext }: {
   ctx: Ctx;
   setCtx: (c: Ctx) => void;
@@ -177,8 +179,8 @@ export function HowStep({ ctx, setCtx, onFilters, onBack, onNext }: {
   const minutes = ctx.range_mode === "time" ? ctx.range_minutes : null;
   return (
     <>
-      <StepHead title={here ? "چطوری می‌ری؟" : "اونجا چطوری می‌گردی؟"}
-        sub={`فقط فروشگاه‌هایی رو نشون می‌دم که از ${here ? "جایی که هستی" : ctx.place} تا این زمان بهشون می‌رسی.`} />
+      <StepHead title="با چی می‌خوای بری؟"
+        sub={`فقط فروشگاه‌هایی رو نشون می‌دم که از ${here ? "جایی که هستی" : ctx.place} ${minutes ? `تا ${fa(minutes)} دقیقه` : `تا ${fa(ctx.radius_km)} کیلومتر`} ${HOW_SHORT[ctx.travel_mode]} بهشون می‌رسی.`} />
       <div className="wz-opts" role="radiogroup">
         {MODES.map(([m, icon, label]) => (
           <Choice key={m} on={ctx.travel_mode === m} onClick={() => setCtx({ ...ctx, travel_mode: m })} icon={icon} title={label} />

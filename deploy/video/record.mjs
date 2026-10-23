@@ -407,7 +407,7 @@ await tapEl(NEXT, { scroll: false });
 await waitFor("document.querySelectorAll('.scenario').length >= 3 && document.querySelector('.bubble-out')", 20000, false);
 await hold(0.6);
 await say();
-const ways = JSON.parse(await js("JSON.stringify([...document.querySelectorAll('.wz-iq')].map((q) => [...q.querySelectorAll('.lad')].map((l) => l.className.split(' ')[1])))"));
+const ways = JSON.parse(await js("JSON.stringify([...document.querySelectorAll('.wz-iq')].map((q) => (q.querySelector('.wz-iq-ch')?.dataset.ways || '').split(',').filter(Boolean)))"));
 const callIx = [1, 2].filter((i) => ways[i]?.at(-1) === "call").sort((a, b) => ways[b].length - ways[a].length)[0]
   ?? [1, 2].find((i) => ways[i]?.includes("call"));
 log("ways", JSON.stringify(ways), "call shop", callIx);
@@ -426,16 +426,24 @@ await hold(0.6);
 await say();
 await untilSpoken(0.3);
 await tapEl(NEXT, { scroll: false });
-// the three ways a shop hears about it, one short scene each: the AI's call (its own recording), WhatsApp, the text
-await waitFor("document.querySelector('.reach')", 10000, false);
-await hold(0.4);
+// each shop hears about it on its own ways, drawn in pixels in its card; the AI's call plays its own recording
+await waitFor("document.querySelector('.sheet')", 8000, false);
+await hold(0.8);
+await tapEl(`document.querySelector('.sheet .iconbtn[aria-label="بستن"]') || document.querySelector('.backdrop')`, { scroll: false });
+await hold(0.3);
+await js("window.scrollTo({ top: 0, behavior: 'smooth' }); true");
 await say();
-await waitFor("document.querySelector('.reach')?.dataset.phase === 'talk'", 20000, false);
-clip("call-ai");
-await waitFor("document.querySelector('.reach')?.dataset.phase === 'answer'", 30000, false);
-clip("call-seller");
-await waitFor("!document.querySelector('.reach')", 40000, false);
-await hold(0.6);
+if (callIx) {
+  const card = `document.querySelectorAll('.wz-iq')[${callIx}]`;
+  await waitFor(`${card}?.querySelector('.chan[data-call="talk"]')`, 25000, false);
+  await js(`${card}?.scrollIntoView({ block: 'center', behavior: 'smooth' }); true`);
+  clip("call-ai");
+  await waitFor(`${card}?.querySelector('.chan[data-call="seller"]')`, 25000, false);
+  clip("call-seller");
+  await waitFor(`${card}?.querySelector('.chan.done')`, 15000, false);
+  await hold(1.4);
+}
+await untilSpoken(0.3);
 await endScene(0);
 
 // 7) the shopkeeper's phone: the one-tap answer page of the first shop, tapped like the shopkeeper would

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { MapContainer, Marker, Polyline, useMap, useMapEvents } from "react-leaflet";
 import type { MapPath } from "../types";
 import { mascotHtml } from "./mascot";
-import { pinHtml } from "./pins";
+import { pinHtml, tagHtml } from "./pins";
 import { TorobTiles } from "./torobTiles";
 
 export type MapPin = { id: number; lat: number; lon: number; label: string; tone?: "normal" | "closed" | "pick" | "cheap" };
@@ -63,7 +63,7 @@ function Pins({ pins, onPick, all, you, chips }: { pins: MapPin[]; onPick?: (id:
     const out: MapPin[] = [];
     for (const p of [...pins].sort((a, b) => RANK[a.tone ?? "normal"] - RANK[b.tone ?? "normal"])) {
       const pt = map.latLngToContainerPoint([p.lat, p.lon]);
-      const box = chips ? { x: pt.x, y: pt.y - 27, w: Math.max(28, p.label.length * 5 + 14), h: 54 } : { x: pt.x, y: pt.y - 18, w: 26, h: 34 };
+      const box = chips && p.label.length > 2 ? { x: pt.x, y: pt.y - 20, w: p.label.length * 7 + 40, h: 40 } : { x: pt.x, y: pt.y - 18, w: 26, h: 34 };
       if (!all && kept.some((k) => Math.abs(k.x - box.x) < (k.w + box.w) / 2 + 2 && Math.abs(k.y - box.y) < (k.h + box.h) / 2 + 2)) continue;
       kept.push(box);
       out.push(p);
@@ -79,12 +79,24 @@ function Pins({ pins, onPick, all, you, chips }: { pins: MapPin[]; onPick?: (id:
           key={p.id}
           position={[p.lat, p.lon]}
           zIndexOffset={(3 - RANK[p.tone ?? "normal"]) * 100}
-          icon={L.divIcon({ className: "", html: pinHtml(p.tone, p.label, !!chips), iconSize: [28, 36], iconAnchor: [14, 34] })}
+          icon={chips && p.label.length > 2
+            ? L.divIcon({ className: "", html: tagHtml(p.tone, p.label), iconSize: [0, 0] })
+            : L.divIcon({ className: "", html: pinHtml(p.tone, p.label, false), iconSize: [28, 36], iconAnchor: [14, 34] })}
           eventHandlers={{ click: () => onPick?.(p.id) }}
         />
       ))}
     </>
   );
+}
+
+/** A map that is only a preview holds still, so the page scrolls over it; it moves again when opened. */
+function Still({ on }: { on: boolean }) {
+  const map = useMap();
+  useEffect(() => {
+    const hs = [map.dragging, map.touchZoom, map.doubleClickZoom, map.scrollWheelZoom, map.boxZoom, map.keyboard];
+    for (const h of hs) (on ? h.disable() : h.enable());
+  }, [map, on]);
+  return null;
 }
 
 const DOTTED = { color: "#e91e33", weight: 4, opacity: 0.85, dashArray: "2 9", lineCap: "round" as const };
@@ -100,7 +112,7 @@ function PathLine({ p }: { p: MapPath }) {
   );
 }
 
-export function MapView({ you, youLabel, pins, route, paths, onPick, small, height, allPins, chips }: {
+export function MapView({ you, youLabel, pins, route, paths, onPick, small, height, allPins, chips, still }: {
   you: { lat: number; lon: number };
   youLabel?: string;
   pins: MapPin[];
@@ -110,7 +122,8 @@ export function MapView({ you, youLabel, pins, route, paths, onPick, small, heig
   small?: boolean;
   height?: number; // a set height instead of the small or the regular one
   allPins?: boolean; // every pin always (the stops of a route), none waiting for a closer zoom
-  chips?: boolean; // each shop's price above its pin
+  chips?: boolean; // each shop as a tag with its price
+  still?: boolean; // a preview: no dragging or zooming (a tap is the page's to handle)
 }) {
   const pts: [number, number][] = [[you.lat, you.lon], ...pins.map((p) => [p.lat, p.lon] as [number, number]),
     ...(paths ?? []).flatMap((p) => (p.real ? p.points : []))];
@@ -118,6 +131,7 @@ export function MapView({ you, youLabel, pins, route, paths, onPick, small, heig
     <div className={"mapbox" + (small ? " small" : "")} style={height ? { height } : undefined}>
       <MapContainer center={[you.lat, you.lon]} zoom={14} style={{ height: "100%", width: "100%" }} zoomControl={false} attributionControl>
         <TorobTiles />
+        <Still on={!!still} />
         <Fit points={pts} top={youLabel ? 84 : 44} /* room above the radish (and its label) at the top edge */ />
         <Marker position={[you.lat, you.lon]} icon={youLabel ? liveIcon(youLabel) : youIcon} zIndexOffset={youLabel ? 1000 : 0} />
         {paths?.length ? paths.map((p, i) => <PathLine key={i} p={p} />)

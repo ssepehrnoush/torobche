@@ -7,7 +7,7 @@ import type { Ctx, InquiryShop, InquirySummary, Reply } from "../../types";
 import { AiNote } from "../bits";
 import type { InquiryState } from "../InquiryView";
 import { StepHead, WizFoot } from "./Shell";
-import { ReachShow } from "./ReachShow";
+import { PX } from "../pixelIcons";
 import { ShopLinkSheet } from "./ShopLink";
 
 const OUTCOME: Record<Reply["outcome"], { label: string; tone: string }> = {
@@ -20,7 +20,6 @@ const OUTCOME: Record<Reply["outcome"], { label: string; tone: string }> = {
 };
 const SCENARIOS: [string, string][] = [["", "خودکار"], ["live", "زنده"], ["confirmed", "موجود"], ["price_changed", "تغییر قیمت"], ["out_of_stock", "ناموجود"], ["no_answer", "بی‌پاسخ"], ["on_call", "با تماس"]];
 const VIA: Record<string, string> = { whatsapp: "واتساپ", sms: "پیامک", call: "تماس هوش مصنوعی" };
-const CHAN_ICON: Record<string, string> = { whatsapp: "chat", sms: "chat", bale: "send", call: "phone" };
 type Chan = { channel: string; label: string; state: "sent" | "calling" | "no_answer"; real?: boolean };
 
 /* A tester can play the first shop on their own phone; the number is remembered on this device only. */
@@ -28,15 +27,66 @@ const TESTER_KEY = "torobche.testerPhone";
 const digits = (s: string) => s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).replace(/\D/g, "");
 const isMobile = (s: string) => /^(0098|98|0)?9\d{9}$/.test(digits(s));
 
-/** The one line a shop's thread shows while it is being asked: the way being tried now. */
-function ChanNow({ log, replied }: { log: Chan[]; replied: boolean }) {
+const CALL_LINES = [
+  "سلام، وقت بخیر. از هوش مصنوعی تربچه تماس می‌گیریم.",
+  "یک مشتری نزدیک فروشگاه شما، هدفون بی‌سیم شیائومی را می‌خواهد.",
+  "لینک جواب برایتان پیامک شد؛ با یک لمس روی آن بگویید موجود دارید یا نه. ممنون.",
+];
+const CALL_SECS = 16.7; // /reach/call-ai.mp3, the automated call as Kavenegar plays it
+
+/** How the shop is being asked right now, drawn in pixels inside its own card: Torob's radish (with a headset)
+    on one side, the shop on the other, and what travels between them, the WhatsApp bubble, the text's envelope
+    or the ringing call. In the demo the call also plays the real automated call, sentence by sentence. */
+function ChanAnim({ log, reply, demo }: { log: Chan[]; reply?: Reply; demo: boolean }) {
   const c = log[log.length - 1];
-  if (!c || replied) return null;
-  const text = c.state === "no_answer" ? `${c.label} جواب نداد، راه بعدی…` : c.channel === "call" ? "هوش مصنوعی داره زنگ می‌زنه…" : `${c.label} رفت، منتظر جواب`;
+  const calling = !!c && c.channel === "call" && c.state === "calling" && !reply;
+  const [t, setT] = useState(0);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => {
+    if (!calling) return;
+    const t0 = performance.now();
+    if (demo) {
+      audio.current = new Audio("/reach/call-ai.mp3");
+      audio.current.play().catch(() => null);
+    }
+    const id = setInterval(() => setT((performance.now() - t0) / 1000), 200);
+    return () => { clearInterval(id); audio.current?.pause(); };
+  }, [calling, demo]);
+  useEffect(() => {
+    if (demo && calling && t >= CALL_SECS + 0.3 && !audio.current?.dataset.seller) {
+      if (audio.current) audio.current.dataset.seller = "1";
+      new Audio("/reach/call-seller.mp3").play().catch(() => null);
+    }
+  }, [t, calling, demo]);
+  if (!c && !reply) return null;
+  const silent = !!reply && (reply.outcome === "no_answer" || reply.outcome === "closed"); // asked on every way, no answer
+  const way = reply && !silent ? (reply.via ?? c?.channel ?? "sms") : c?.channel ?? "sms";
+  const off = silent || (!!c && c.state === "no_answer" && !reply);
+  if (silent) reply = undefined;
+  const total = CALL_LINES.reduce((a, l) => a + l.length, 0);
+  let said = 0;
+  for (let i = 0, acc = 0; i < CALL_LINES.length; i++) { acc += (CALL_LINES[i].length / total) * CALL_SECS; if (t < acc) { said = i; break; } said = i; }
+  const phase = calling ? (t < CALL_SECS + 0.3 ? "talk" : "seller") : reply ? "done" : "wait";
+  const caption = reply ? (reply.own ? "مغازه‌دار خودش جواب داد" : reply.real ? "مغازه‌دار از صفحهٔ جواب زد" : "جواب رسید")
+    : calling ? "هوش مصنوعی داره زنگ می‌زنه…"
+    : silent ? "از هیچ راهی جواب نداد"
+    : off ? `${c!.label} جواب نداد، راه بعدی…`
+    : `${c!.label} رفت، منتظر جواب${c!.real ? " (واقعی)" : ""}`;
+  const icon = way === "whatsapp" ? PX.whatsapp(20) : way === "call" ? PX.call(20) : PX.sms(20);
   return (
-    <div className={"wz-sys" + (c.channel === "call" && c.state === "calling" ? " ringing" : "")}>
-      <Icon name={CHAN_ICON[c.channel] ?? "chat"} size={13} />
-      <span>{text}{c.real ? " (واقعی)" : ""}</span>
+    <div className={`chan ${way}${calling ? " calling" : ""}${reply ? " done" : ""}${off ? " off" : ""}`} data-call={way === "call" ? phase : undefined}>
+      <div className="chan-row">
+        <span className="chan-me" dangerouslySetInnerHTML={{ __html: PX.radishAi(30) }} />
+        <span className="chan-track">
+          {!reply && !calling && !off && <i key={`${way}-${log.length}`} className="chan-fly" dangerouslySetInnerHTML={{ __html: icon }} />}
+          {calling && <span className="chan-wave">{[0, 1, 2, 3, 4, 5].map((i) => <i key={i} />)}</span>}
+          {reply && <i className="chan-fly back" dangerouslySetInnerHTML={{ __html: PX.reply(20) }} />}
+        </span>
+        <span className="chan-shop" dangerouslySetInnerHTML={{ __html: PX.shop(30) }} />
+        {calling && <><em className="chan-ring r1" /><em className="chan-ring r2" /></>}
+      </div>
+      <span className="chan-cap">{caption}</span>
+      {calling && demo && <span key={said} className="chan-say">«{CALL_LINES[said]}»</span>}
     </div>
   );
 }
@@ -68,7 +118,6 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
     }
   });
   const [play, setPlay] = useState(false);
-  const [reach, setReach] = useState(false);
   const ran = useRef("");
   const key = `${st.pid}:${st.sids.join(",")}`;
 
@@ -84,7 +133,6 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
 
   const start = async () => {
     askToNotify(); // asked on this tap, since the answers often land while the person is in another app
-    setReach(true);
     setRunning(true);
     setSt((s) => ({ ...s, started: true, replies: {}, summary: null }));
     setLog({});
@@ -180,13 +228,13 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
 
               {!st.started ? (
                 s.channels?.length ? (
-                  <div className="wz-iq-ch"><Icon name="chat" size={13} />
+                  <div className="wz-iq-ch" data-ways={s.channels.map((x) => x.k).join(",")}><Icon name="chat" size={13} />
                     <span className="grow">راه‌هایی که خودش خواسته: {s.channels.map((x) => x.label).join("، بعد ")}</span>
                   </div>
                 ) : null
               ) : (
                 <div className="wz-thread">
-                  <ChanNow log={log[s.sid] ?? []} replied={!!r} />
+                  <ChanAnim log={log[s.sid] ?? []} reply={r} demo={demo} />
                   {!r && <span className="typing sm"><i /><i /><i /></span>}
                   {r && (r.text || r.note) && (
                     <div className={"wz-in" + (r.in_stock === false || !r.text ? " off" : "")}>
@@ -278,15 +326,6 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
         </WizFoot>
       )}
       {link && <ShopLinkSheet shop={link} onClose={() => setLink(null)} toast={toast} />}
-      {reach && shops.length > 0 && (() => {
-        // the demo shows all three ways; a real person sees the first way the first shop picked
-        const first = shops[0];
-        const ways = (demo ? ["call", "whatsapp", "sms"] : [first.channels?.[0]?.k ?? "sms"])
-          .filter((w): w is "call" | "whatsapp" | "sms" => w === "call" || w === "whatsapp" || w === "sms");
-        const msg = first.sms ? first.sms.replace("/r/", "torobche.lemonai.ir/r/")
-          : `فروشگاه ${first.name}\nیک مشتری نزدیک شما این کالا را می‌خواهد: ${st.product?.title ?? ""}\nموجود دارید؟ جواب با یک لمس:\ntorobche.lemonai.ir/r/…\nهوش مصنوعی لمون`;
-        return <ReachShow ways={ways.length ? ways : ["sms"]} shop={first.name} message={msg} onDone={() => setReach(false)} />;
-      })()}
     </>
   );
 }
