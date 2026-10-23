@@ -58,3 +58,10 @@ def paths(origin: tuple[float, float], stops: list[dict]) -> list[dict]:
         lines = list(ex.map(lambda r: _route(PROFILES[r[0]], r[1]) if r[0] in PROFILES else None, runs))
     return [{"mode": mode, "real": line is not None, "points": line or [list(p) for p in pts]}
             for (mode, pts), line in zip(runs, lines)]
+
+
+def way(origin: tuple[float, float], dest: tuple[float, float], mode: str) -> dict:
+    """The line from the person to one shop, along the streets when the service answers (the shops map draws it
+    from the radish to the shop, like a map app's directions); metro has no profile, so it takes the car's."""
+    line = _route(PROFILES.get(mode, "car"), [origin, dest])
+    return {"mode": mode, "real": line is not None, "points": line or [list(origin), list(dest)]}

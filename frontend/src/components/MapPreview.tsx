@@ -17,6 +17,8 @@ const STREETS = [
 // where pins stand on the picture, on its streets, nearest to the radish first (the button keeps the corner free)
 const SLOTS: [number, number][] = [[73, 24], [66, 58], [57, 35], [47, 63], [40, 24], [31, 50], [22, 30], [14, 62], [7, 36]];
 const YOU: [number, number] = [88, 44];
+// from the radish's feet to the first spot's pin, turning where the picture's streets turn
+const WAY = "88,44 86,36 80,31 76,28 73,24";
 
 /** The nearest shops, one to a spot, the closest on the spot closest to the radish. */
 function place(you: { lat: number; lon: number }, pins: P[]) {
@@ -40,6 +42,13 @@ export function MapPreview({ you, pins, onOpen, height }: { you: { lat: number; 
         <path d="M206 162 C228 108 300 76 424 72" stroke="#fff" strokeWidth="6" fill="none" strokeLinecap="round" />
         {STREETS.map((d) => <path key={d} d={d} stroke="#fff" strokeWidth="3.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />)}
       </svg>
+      {pts.length > 0 && (
+        // the way to the nearest shop along the drawn streets, like a map app's directions
+        <svg className="mprev-way" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <polyline points={WAY} fill="none" stroke="#fff" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+          <polyline points={WAY} fill="none" stroke="#e91e33" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        </svg>
+      )}
       {pts.map(({ p, x, y }) => (
         <span key={p.id} className="mprev-pin" style={{ left: `${x}%`, top: `${y}%` }}
           dangerouslySetInnerHTML={{ __html: pinHtml(p.tone === "closed" ? "closed" : "normal", "", false) }} />

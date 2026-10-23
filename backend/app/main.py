@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import agent, catalog, config, contact, db, gazetteer, genui, llm, shops, stroll, visit
-from . import travel
+from . import streets, travel
 from .agent import fmt_shops, toman
 from .models import Ctx
 from .places import PLACES
@@ -269,6 +269,14 @@ class ShopIn(BaseModel):
     sid: int
     pid: int | None = None
     ctx: Ctx = Ctx()
+
+
+@app.post("/api/way")
+async def way(body: ShopIn):
+    s = shops.shop(body.sid)
+    if not s:
+        raise HTTPException(404, "فروشگاه پیدا نشد")
+    return await asyncio.to_thread(streets.way, (body.ctx.lat, body.ctx.lon), (s.lat, s.lon), body.ctx.travel_mode)
 
 
 @app.post("/api/mall3d")

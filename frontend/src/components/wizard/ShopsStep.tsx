@@ -3,7 +3,7 @@ import { MapPreview } from "../MapPreview";
 import { api } from "../../api";
 import { fa, short, shortPlace, toman } from "../../fmt";
 import { Icon } from "../../icons";
-import type { Authenticity, Ctx, GenShops, ShopOffer, ShopsResult, TravelMode } from "../../types";
+import type { Authenticity, Ctx, GenShops, MapPath, ShopOffer, ShopsResult, TravelMode } from "../../types";
 import { activeFilters } from "../ContextBar";
 import { AuthBadge, OpenText, PriceAge, TravelInline } from "../bits";
 import { Img } from "../Products";
@@ -155,15 +155,24 @@ function ShopMap({ near, ctx, sel, cheapest, onToggle }: {
   near: ShopOffer[]; ctx: Ctx; sel: number[]; cheapest: number | null; onToggle: (sid: number) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [way, setWay] = useState<MapPath | null>(null);
   const pins = near.slice(0, 15).map((i) => ({
     id: i.sid, lat: i.lat, lon: i.lon, label: i.price ? short(i.price) : "؟",
     tone: sel.includes(i.sid) ? "pick" as const : i.open_at_visit.state === "closed" ? "closed" as const : i.sid === cheapest ? "cheap" as const : "normal" as const,
   }));
+  // the way from the radish to the first ticked shop (or the nearest), along the streets like a map app's directions
+  const to = sel.find((s) => near.some((i) => i.sid === s)) ?? near[0]?.sid;
+  useEffect(() => {
+    if (!open || !to) return;
+    let alive = true;
+    api.way(to, ctx).then((w) => alive && setWay(w)).catch(() => alive && setWay(null));
+    return () => { alive = false; };
+  }, [open, to, ctx.lat, ctx.lon, ctx.travel_mode]); // eslint-disable-line
   if (!open) return <div className="wz-shopmap"><MapPreview you={{ lat: ctx.lat, lon: ctx.lon }} pins={pins} onOpen={() => setOpen(true)} height={STRIP_H} /></div>;
   return (
     <div className="wz-shopmap">
       <Suspense fallback={<div className="shimmer mapbox" style={{ height: OPEN_H }} />}>
-        <MapView you={{ lat: ctx.lat, lon: ctx.lon }} pins={pins} onPick={onToggle} height={OPEN_H} chips />
+        <MapView you={{ lat: ctx.lat, lon: ctx.lon }} pins={pins} onPick={onToggle} height={OPEN_H} chips paths={way ? [way] : undefined} />
       </Suspense>
       <button className="wz-mapbtn" onClick={() => setOpen(false)} aria-expanded="true">
         <Icon name="up" size={16} /> کوچیک کن
