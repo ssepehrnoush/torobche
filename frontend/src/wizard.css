@@ -60,7 +60,10 @@ main.wz-main > :not(.wz-foot) { animation: wzin .26s var(--ease) both; }
 
 .wz-wait { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 64px 16px 32px; text-align: center; }
 .wz-wait b { font-size: 18px; font-weight: 900; }
-.wz-spin { width: 44px; height: 44px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--ai); animation: spin .8s linear infinite; margin-bottom: 10px; }
+.wz-logo-spin { display: inline-grid; place-items: center; width: 56px; height: 56px; margin-bottom: 12px; animation: logo-spin 1.15s cubic-bezier(.55, .05, .3, 1) infinite; }
+.wz-logo-spin svg { display: block; filter: drop-shadow(0 6px 12px rgba(233, 30, 51, .22)); }
+@keyframes logo-spin { 0% { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(.92); } 100% { transform: rotate(360deg) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .wz-logo-spin { animation-duration: 2.6s; } }
 
 /* shops */
 .wz-prodline { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; border-radius: 12px; background: var(--surface); font-size: 13px; font-weight: 700; text-align: right; }

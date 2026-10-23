@@ -3,7 +3,7 @@ import { fa, short, toman } from "../../fmt";
 import { Icon } from "../../icons";
 import type { GenAnswer, GenScreen } from "../../types";
 import { Img } from "../Products";
-import { Choice, StepHead, WizFoot } from "./Shell";
+import { Choice, LogoSpin, StepHead, WizFoot } from "./Shell";
 
 /** Which block the model picked, and why: shown on top of every generated screen. */
 export function GenBadge({ s }: { s: { source: string; why: string } }) {
@@ -37,7 +37,7 @@ export function GenWait({ onBack }: { onBack: () => void }) {
   return (
     <>
       <div className="wz-wait fadein">
-        <span className="wz-spin" />
+        <LogoSpin />
         <b>دارم صفحهٔ بعد رو می‌سازم…</b>
         <span className="meta">هوش مصنوعی از روی جواب‌هات تصمیم می‌گیره چی بپرسه</span>
       </div>

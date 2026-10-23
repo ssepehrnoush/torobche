@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { fa } from "../../fmt";
 import { Icon } from "../../icons";
+import { RadishLogo } from "../Logo";
 
 /** One question per screen: a big title, at most one line under it. */
 export function StepHead({ title, sub }: { title: ReactNode; sub?: ReactNode }) {
@@ -27,6 +28,11 @@ export function Progress({ idx, n }: { idx: number; n: number }) {
 type Next = { label: ReactNode; onClick?: () => void; href?: string; disabled?: boolean };
 
 /** The wizard's fixed bottom: «قبلی» and one main button; an optional quiet line above them. */
+/** The wizard's loader: the radish mark turning, in place of a plain spinner. */
+export function LogoSpin() {
+  return <span className="wz-logo-spin" role="img" aria-label="در حال آماده شدن"><RadishLogo size={56} /></span>;
+}
+
 export function WizFoot({ onBack, next, extra, children }: { onBack?: () => void; next: Next; extra?: ReactNode; children?: ReactNode }) {
   return (
     <div className="wz-foot">

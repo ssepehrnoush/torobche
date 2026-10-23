@@ -3,7 +3,7 @@ import { fa, short } from "../../fmt";
 import { Icon } from "../../icons";
 import type { FeedItem, Question } from "../../types";
 import { Img } from "../Products";
-import { Choice, StepHead, WizFoot } from "./Shell";
+import { Choice, LogoSpin, StepHead, WizFoot } from "./Shell";
 
 type AgentItem = Extract<FeedItem, { kind: "agent" }>;
 
@@ -34,7 +34,7 @@ function Thinking({ status, onBack }: { status?: string; onBack: () => void }) {
   return (
     <>
       <div className="wz-wait fadein">
-        <span className="wz-spin" />
+        <LogoSpin />
         <b>دارم می‌گردم…</b>
         <span className="meta">{status || "کالاهای مناسب و فروشگاه‌های نزدیک رو پیدا می‌کنم"}</span>
       </div>
