@@ -52,7 +52,7 @@ def set_envs() -> None:
         {"key": "WHATSAPP_SWAGGER_ENABLED", "value": "False"},
         {"key": "WAHA_PRINT_QR", "value": "False"},
     ]
-    st, d = L.call("POST", "/v1/projects/update-envs", {"project": APP, "variables": variables})
+    st, d = L.update_envs(variables)  # merges: update-envs alone replaces the whole list
     print("envs:", st, "ok" if st in (200, 201) else str(d)[:200])
 
 

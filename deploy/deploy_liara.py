@@ -90,6 +90,28 @@ def app_status() -> dict | None:
     return d.get("project") if st == 200 and isinstance(d, dict) else None
 
 
+def update_envs(variables: list[dict]) -> tuple[int, object]:
+    """Set these variables and keep every other one the app already has.
+
+    Liara's update-envs replaces the app's whole list: on 2026-10-23 sending only the two inquiry caps to
+    torobche wiped all its keys. So the current list is read first, the changes laid over it and the lot
+    sent, then checked for anything missing. A variable dropped from .env stays on Liara until the panel
+    removes it, and one set only in the panel (the caps) survives the next deploy.
+    """
+    st, d = call("GET", f"/v1/projects/{APP}")
+    if st != 200 or not isinstance(d, dict):
+        return st, "could not read the app's current envs, so nothing was sent"
+    merged = {e["key"]: e.get("value", "") for e in (d.get("project") or {}).get("envs", [])}
+    merged.update({v["key"]: v["value"] for v in variables})
+    st, d = call("POST", "/v1/projects/update-envs",
+                 {"project": APP, "variables": [{"key": k, "value": v} for k, v in merged.items()]})
+    if st in (200, 201):
+        kept = {e["key"] for e in (app_status() or {}).get("envs", [])}
+        if set(merged) - kept:
+            print("WARNING envs missing after the update:", ", ".join(sorted(set(merged) - kept)))
+    return st, d
+
+
 def pack() -> bytes:
     if not (ROOT / "frontend" / "dist" / "index.html").is_file():
         sys.exit("frontend/dist missing: run `npm --prefix frontend run build` first")
@@ -125,7 +147,7 @@ def set_envs() -> None:
     for k in ("OPENAI_API_KEY", "KAVENEGAR_API_KEY", "DEMO_SHOP_PHONES", "KAVENEGAR_TEMPLATE", "WAHA_URL", "WAHA_API_KEY"):
         if ENV.get(k):
             variables.append({"key": k, "value": ENV[k]})
-    st, d = call("POST", "/v1/projects/update-envs", {"project": APP, "variables": variables})
+    st, d = update_envs(variables)
     print("envs:", st, (d.get("message") if isinstance(d, dict) else "")[:120] if st != 200 else "ok")
 
 
@@ -168,8 +190,7 @@ def main() -> None:
         follow(a.follow)
         return
     if a.llm_off or a.llm_on:
-        st, d = call("POST", "/v1/projects/update-envs", {"project": APP, "variables": [
-            {"key": "LLM_DISABLED", "value": "1" if a.llm_off else "0"}]})
+        st, d = update_envs([{"key": "LLM_DISABLED", "value": "1" if a.llm_off else "0"}])
         print("LLM_DISABLED =", "1" if a.llm_off else "0", "->", st)
         return
     if a.scale is not None:
