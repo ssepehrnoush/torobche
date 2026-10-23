@@ -363,7 +363,8 @@ async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bo
     answered = plan["outcome"] not in ("no_answer", "closed")
     answer_on = 0
     if plan.get("answer_last"):
-        answer_on = len(channels) - 1  # demo «با تماس»: nothing is read, the last way (the call) gets the answer
+        # demo «با تماس»: the messages go unread and the automated call gets the answer
+        answer_on = channels.index("call") if "call" in channels else len(channels) - 1
     elif answered and len(channels) > 1 and random.Random(tok).random() < 0.35:
         answer_on = 1  # the first channel goes unread, the next one gets the answer
     for i, ch in enumerate(channels):

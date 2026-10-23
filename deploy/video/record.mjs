@@ -32,7 +32,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ---------------------------------------------------------------- chrome + cdp
 const proc = spawn(CHROME, [
   "--headless=new", `--remote-debugging-port=${PORT}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), "tbv-"))}`,
-  "--no-first-run", "--no-default-browser-check", "--hide-scrollbars", `--window-size=${W},${H}`,
+  "--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--enable-unsafe-swiftshader", // WebGL for the 3D mall `--window-size=${W},${H}`,
   "--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows",
   "about:blank",
 ], { stdio: "ignore" });
@@ -118,16 +118,48 @@ function beginScene(id) {
   rec.scenes.push({ id, title: scene.title, step: scene.step, start: Math.round(tick()) });
   log("SCENE", id);
 }
-async function say() {
+async function say(alt = null) {
   const wait = voiceEnd + 250 - tick(); // the next line starts when the previous clip has finished (plus a breath)
   if (wait > 0) await hold(wait / 1000);
-  const lid = `${scene.id}-${scene.lineIx++}`;
+  const lid = alt || `${scene.id}-${scene.lineIx}`; // alt: another wording of this line, for what this take shows
+  scene.lineIx++;
   const v = voice[lid];
   if (!v) throw new Error(`no voice clip for ${lid}`);
   const start = tick();
   rec.cues.push({ id: lid, scene: scene.id, start: Math.round(start), dur: v.dur, file: v.file, text: v.text });
   voiceEnd = start + v.dur * 1000;
   log("SAY", lid, v.text.slice(0, 40));
+}
+function sayNow(alt = null) {
+  const lid = alt || `${scene.id}-${scene.lineIx}`;
+  scene.lineIx++;
+  const v = voice[lid];
+  if (!v) throw new Error(`no voice clip for ${lid}`);
+  rec.cues.push({ id: lid, scene: scene.id, start: Math.round(rec.vt), dur: v.dur, file: v.file, text: v.text });
+  voiceEnd = rec.vt + v.dur * 1000;
+  log("SAY", lid, v.text.slice(0, 40));
+}
+/** Film the 3D mall frame by frame: the screenshot loop pauses and the model is stepped exactly 1/30 s per frame,
+    so the walk is smooth however slow the software renderer is. `lines` are [second, alt] to say on the way. */
+async function film3d(sec, lines = []) {
+  capturing = false;
+  await capture;
+  tick();
+  await js("window.__mall3d.manual(true); true");
+  const todo = [...lines];
+  for (let i = 0; i < Math.round(sec * 30); i++) {
+    while (todo.length && i / 30 >= todo[0][0]) sayNow(todo.shift()[1]);
+    await js("window.__mall3d.step(1 / 30)");
+    const { data } = await screen.cdp("Page.captureScreenshot", { format: "jpeg", quality: 84 }, 15000);
+    rec.vt += 1000 / 30;
+    const file = `f${String(++rec.n).padStart(6, "0")}.jpg`;
+    writeFileSync(join(OUT, "frames", file), Buffer.from(data, "base64"));
+    rec.frames.push({ t: Math.round(rec.vt), file });
+  }
+  await js("window.__mall3d.manual(false); true");
+  rec.last = Date.now();
+  capturing = true;
+  capture = captureLoop();
 }
 async function untilSpoken(extra = 0) {
   const wait = voiceEnd + extra * 1000 - tick();
@@ -217,7 +249,7 @@ await js("localStorage.clear(); sessionStorage.clear(); location.reload(); true"
 await sleep(3000);
 rec.last = Date.now();
 capturing = true;
-const capture = captureLoop();
+let capture = captureLoop();
 await hold(0.4);
 
 // 1) home
@@ -259,10 +291,29 @@ for (let i = 0; i < 3; i++) {
   await hold(1.2);
   await tapEl(byText("فرقی نمی‌کنه", "button"));
 }
+// the model that shows the floor view best later: the most other shops of one mall nearby with it
+setSpeed(8);
+const prodIx = await js(`(async () => {
+  const ctx = JSON.parse(localStorage.getItem('bazargard.ctx') || '{}');
+  const post = async (url, body) => (await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
+  const pids = [...document.querySelectorAll('.wz-prod')].map((b) => +b.dataset.pid);
+  let best = 0, score = -1;
+  for (let k = 0; k < pids.length; k++) {
+    const r = await post('/api/shops', { pid: pids[k], ctx, sort: 'best', exclude: [] });
+    let sc = 0;
+    for (const c of r.items.filter((i) => i.in_radius && i.mall_name).slice(0, 6)) {
+      const b = (await post('/api/shop', { sid: c.sid, pid: pids[k], ctx })).mall_building;
+      if (b) sc = Math.max(sc, (c.mall_name === 'پاساژ علاالدین' ? 1000 : 0) + Math.min(b.offers, 3) * 100 + b.floors.length);
+    }
+    if (sc > score) { score = sc; best = k; }
+  }
+  return best })()`);
+setSpeed(1);
+log("product", prodIx);
 await hold(0.5);
 await say();
 await hold(1.4);
-await tapEl("document.querySelector('.wz-prod')");
+await tapEl(`document.querySelectorAll('.wz-prod')[${prodIx || 0}]`);
 await say();
 await untilSpoken(0.2);
 await tapEl(NEXT, { scroll: false });
@@ -301,8 +352,17 @@ const mallName = await js(`(async () => { const s = JSON.parse(sessionStorage.ge
   const r = await (await fetch('/api/shops', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pid: s.pid, ctx, sort: 'best', exclude: [] }) })).json();
   const rows = [...document.querySelectorAll('.wz-shop')].map((x) => x.textContent);
-  const m = r.items.find((i) => i.in_radius && i.mall_name && rows.some((t) => t.includes(i.name)));
-  return m ? m.name : null })()`);
+  const cands = r.items.filter((i) => i.in_radius && i.mall_name && rows.some((t) => t.includes(i.name)));
+  // the one whose floor view has the most to show: other shops of the mall with the same product, then floors
+  let best = null, score = -1;
+  for (const c of cands.slice(0, 6)) {
+    const d = await (await fetch('/api/shop', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sid: c.sid, pid: s.pid, ctx }) })).json();
+    const b = d.mall_building;
+    const sc = b ? (c.mall_name === 'پاساژ علاالدین' ? 1000 : 0) + Math.min(b.offers, 3) * 100 + b.floors.length : -1;
+    if (sc > score) { score = sc; best = c; }
+  }
+  return best ? best.name : null })()`);
 log("mall shop:", mallName);
 await tapEl(mallName
   ? `[...document.querySelectorAll('.wz-shop')].find((x) => x.textContent.includes(${JSON.stringify(mallName || "")}))?.querySelector('.wz-info')`
@@ -311,7 +371,28 @@ await waitFor("document.querySelector('.sheet')", 15000, false);
 await hold(0.6);
 await say();
 await hold(0.8);
-await smoothScroll(300, 1.6, ".sheet .sheetbody");
+// the floors drawn as a building: the radish at the entrance, the way to the red pin, the green shops
+await js("document.querySelector('.sheet .mallbld')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); true");
+await untilSpoken(0.2);
+await say((await js("document.querySelectorAll('.sheet .mb-offer').length")) ? null : "mall-1-plain");
+await untilSpoken(-0.8);
+await js("document.querySelector('.sheet .fold')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); true");
+await hold(0.5);
+await tapEl("document.querySelector('.sheet .atdoor-btn')", { scroll: false });
+await say();
+// Alaeddin in 3D: the radish walks from the street up the lift to the shop
+if (await js("!!document.querySelector('.sheet .m3d-open')")) {
+  await untilSpoken(0.2);
+  await js("document.querySelector('.sheet .m3d-open').scrollIntoView({ block: 'center', behavior: 'smooth' }); true");
+  await hold(0.7);
+  await tapEl("document.querySelector('.sheet .m3d-open')", { scroll: false });
+  await waitFor("window.__mall3d", 20000, false);
+  await hold(0.3);
+  const arrive = await js("window.__mall3d.times.arrive");
+  await film3d(Math.min(arrive + 5, 26), [[0.4, null]]);
+  await tapEl(`document.querySelector('.m3d .iconbtn[aria-label="بستن"]')`, { scroll: false });
+  await hold(0.4);
+}
 await endScene();
 await tapEl("document.querySelector('.backdrop')", { scroll: false });
 await hold(0.4);
@@ -327,7 +408,12 @@ await tapEl(NEXT, { scroll: false });
 await waitFor("document.querySelectorAll('.scenario').length >= 3 && document.querySelector('.bubble-out')", 20000, false);
 await hold(0.6);
 await say();
-for (const [ix, label] of [[0, "زنده"], [1, "تغییر قیمت"], [2, "بی‌پاسخ"]]) {
+const ways = JSON.parse(await js("JSON.stringify([...document.querySelectorAll('.wz-iq')].map((q) => [...q.querySelectorAll('.lad')].map((l) => l.className.split(' ')[1])))"));
+const callIx = [1, 2].filter((i) => ways[i]?.at(-1) === "call").sort((a, b) => ways[b].length - ways[a].length)[0]
+  ?? [1, 2].find((i) => ways[i]?.includes("call"));
+log("ways", JSON.stringify(ways), "call shop", callIx);
+const plan = callIx ? [[0, "زنده"], [callIx, "با تماس"], [3 - callIx, "تغییر قیمت"]] : [[0, "زنده"], [1, "تغییر قیمت"], [2, "بی‌پاسخ"]];
+for (const [ix, label] of plan) {
   await tapEl(`(() => { const row = document.querySelectorAll('.scenario')[${ix}]; return row && [...row.querySelectorAll('button')].find((b) => b.textContent === ${JSON.stringify(label)}) })()`);
 }
 await js("document.querySelector('.wz-iq-ch')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); true");
@@ -336,6 +422,21 @@ await hold(2.0);
 await smoothScroll(200, 1.4);
 await untilSpoken(0.2);
 await tapEl(NEXT, { scroll: false });
+if (callIx) {
+  // the assistant goes down the shop's own list: WhatsApp, the text, then it phones; shown before the shopkeeper's phone
+  await waitFor("document.querySelector('.sheet')", 8000, false);
+  await hold(0.9);
+  await tapEl(`document.querySelector('.sheet .iconbtn[aria-label="بستن"]') || document.querySelector('.backdrop')`, { scroll: false });
+  await hold(0.3);
+  await js(`document.querySelectorAll('.wz-iq')[${callIx}]?.scrollIntoView({ block: 'center', behavior: 'smooth' }); true`);
+  await hold(0.5);
+  await say();
+  await waitFor(`document.querySelectorAll('.wz-iq')[${callIx}]?.querySelector('.wz-call')`, 20000, false);
+  await js(`document.querySelectorAll('.wz-iq')[${callIx}]?.querySelector('.wz-call')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); true`);
+  await waitFor(`document.querySelectorAll('.wz-iq')[${callIx}]?.querySelector('.lad.call.won')`, 25000, false);
+  await hold(1.6);
+  await untilSpoken(0.3);
+}
 await endScene(0);
 
 // 7) the shopkeeper's phone: the one-tap answer page of the first shop, tapped like the shopkeeper would
@@ -379,7 +480,7 @@ await say();
 await waitFor("document.querySelectorAll('.wz-in').length >= 3", 90000);
 await hold(0.4);
 await smoothScroll(260, 1.4);
-await say();
+await say(callIx ? null : "replies-1-plain"); // with no shop that takes calls, the older wording
 await waitFor("document.querySelector('.ainote')", 40000);
 await js("document.querySelector('.ainote')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); true");
 await endScene(0.8);
