@@ -80,7 +80,7 @@ export function GoStep({ pid, sids, confirmed, ctx, toast, onBack, onOpenShop }:
         sub={`${fa(plan.stops.length)} فروشگاه، حدود ${fa(plan.total_minutes)} دقیقه. حرکت از ${plan.origin.label} ساعت ${plan.start_label}.`} />
 
       <Suspense fallback={<div className="shimmer mapbox small" />}>
-        <MapView you={plan.origin} route={route} paths={plan.paths} small onPick={onOpenShop}
+        <MapView you={plan.origin} route={route} paths={plan.paths} small allPins onPick={onOpenShop}
           youLabel={plan.origin.label === HERE ? "شما اینجایید" : `شروع: ${shortPlace(plan.origin.label)}`}
           pins={plan.stops.map((s, i) => ({ id: s.sid, lat: s.lat, lon: s.lon, label: fa(i + 1), tone: s.open.state === "closed" ? "closed" : "pick" }))} />
       </Suspense>

@@ -299,6 +299,18 @@ def _shops_brief(res: dict, need: str, ctx: Ctx) -> str:
     return "\n".join(lines)
 
 
+def _cheaper_by(res: dict, sid: int | None) -> float:
+    """How many percent this shop is cheaper than the next open, unwarned shop near by (0 when it is not): a
+    «پیشنهاد من» that says «ارزون‌تر» needs a real gap, never «۰٪ ارزون‌تر»."""
+    clean = [i for i in res["items"] if i["in_radius"] and i["price"] and not i.get("price_warning")
+             and i["open_at_visit"]["state"] != "closed"]
+    me = next((i for i in clean if i["sid"] == sid), None)
+    others = [i["price"] for i in clean if i["sid"] != sid]
+    if not me or not others:
+        return 0.0
+    return max(0.0, 100 * (min(others) - me["price"]) / min(others))
+
+
 def shops_rule(res: dict) -> dict:
     near = [i for i in res["items"] if i["in_radius"]]
     if not near:
@@ -336,6 +348,7 @@ async def shops_layout(pid: int, ctx: Ctx, need: str, budget_key: str | None = N
             s = json.loads(((msg.get("tool_calls") or [{}])[0].get("function") or {}).get("arguments") or "{}")
             ok = s.get("layout") in SHOP_LAYOUTS and s.get("title")
             ok = ok and (s["layout"] != "best" or s.get("best_sid") in (open_near or near))
+            ok = ok and (s["layout"] != "best" or "ارزون" not in (s.get("reason") or "") or _cheaper_by(res, s.get("best_sid")) >= 2)
             ok = ok and (s["layout"] != "bargain" or bool(res.get("bargain")))
             ok = ok and (s["layout"] != "expand" or not near)
             ok = ok and (s["layout"] != "map" or len(near) >= 3)

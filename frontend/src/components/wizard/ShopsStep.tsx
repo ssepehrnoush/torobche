@@ -96,8 +96,10 @@ export function ShopsStep({ pid, ctx, setCtx, picks, need, onBack, onAsk, onGo, 
 
       {onFilters && onPlace && <CondBar ctx={ctx} setCtx={setCtx} onFilters={onFilters} onPlace={onPlace} />}
 
+      {data && near.length > 0 && <ShopMap near={near} ctx={ctx} sel={sel} cheapest={cheapest} onToggle={toggle} />}
+
       {layout && data && near.length > 0 && (
-        <GenLayout layout={layout} near={near} ctx={ctx} bargain={bargain} sel={sel} onToggle={toggle}
+        <GenLayout layout={layout} near={near} bargain={bargain} sel={sel} onToggle={toggle}
           onAsk={onAsk} onGo={onGo} onOpenShop={onOpenShop} />
       )}
 
@@ -140,6 +142,32 @@ export function ShopsStep({ pid, ctx, setCtx, picks, need, onBack, onAsk, onGo, 
         {sel.length > 0 && <button className="textbtn center wz-skip" onClick={() => onGo(sel)}>بدون پرسیدن، فقط مسیر رو بده</button>}
       </WizFoot>
     </>
+  );
+}
+
+const STRIP_H = 150;
+const OPEN_H = 380;
+
+/** The near shops on a map, like Torob's own: a short strip above the list that opens to full size. Each shop is
+    only its price (a tap ticks it or not); the ticked ones in the brand colour, the cheapest outlined in green,
+    the ones closed when the person gets there faded. The person is the hopping radish. */
+function ShopMap({ near, ctx, sel, cheapest, onToggle }: {
+  near: ShopOffer[]; ctx: Ctx; sel: number[]; cheapest: number | null; onToggle: (sid: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const pins = near.slice(0, 15).map((i) => ({
+    id: i.sid, lat: i.lat, lon: i.lon, label: i.price ? short(i.price) : "؟",
+    tone: sel.includes(i.sid) ? "pick" as const : i.open_at_visit.state === "closed" ? "closed" as const : i.sid === cheapest ? "cheap" as const : "normal" as const,
+  }));
+  return (
+    <div className="wz-shopmap">
+      <Suspense fallback={<div className="shimmer mapbox" style={{ height: STRIP_H }} />}>
+        <MapView you={{ lat: ctx.lat, lon: ctx.lon }} pins={pins} onPick={onToggle} height={open ? OPEN_H : STRIP_H} />
+      </Suspense>
+      <button className="wz-mapbtn" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <Icon name={open ? "up" : "map"} size={16} /> {open ? "کوچیک کن" : "فروشگاه‌ها روی نقشه"}
+      </button>
+    </div>
   );
 }
 
@@ -219,10 +247,9 @@ function ShopRow({ i, on, cheapest, saving, onToggle, onInfo }: {
 }
 
 /** What opens the shops screen, chosen by the model; the usual list follows it. */
-function GenLayout({ layout, near, ctx, bargain, sel, onToggle, onAsk, onGo, onOpenShop }: {
+function GenLayout({ layout, near, bargain, sel, onToggle, onAsk, onGo, onOpenShop }: {
   layout: GenShops;
   near: ShopOffer[];
-  ctx: Ctx;
   bargain: ShopsResult["bargain"] | null;
   sel: number[];
   onToggle: (sid: number) => void;
@@ -254,16 +281,8 @@ function GenLayout({ layout, near, ctx, bargain, sel, onToggle, onAsk, onGo, onO
     );
   }
   if (layout.layout === "map") {
-    return (
-      <>
-        {badge}
-        <Suspense fallback={<div className="shimmer mapbox small" />}>
-          <MapView you={{ lat: ctx.lat, lon: ctx.lon }} small onPick={onToggle}
-            pins={near.slice(0, 12).map((i) => ({ id: i.sid, lat: i.lat, lon: i.lon, label: i.price ? short(i.price) : "؟", tone: sel.includes(i.sid) ? "pick" : "normal" }))} />
-        </Suspense>
-        <p className="meta center" style={{ margin: 0 }}>روی هر قیمت بزنی، اون مغازه انتخاب یا حذف می‌شه.</p>
-      </>
-    );
+    // the map itself is always above the list now (ShopMap); here only why the model chose it
+    return <>{badge}<p className="meta center" style={{ margin: 0 }}>روی نقشهٔ بالا، روی هر قیمت بزنی اون مغازه انتخاب یا حذف می‌شه.</p></>;
   }
   if (layout.layout === "bargain" && bargain) {
     const on = sel.includes(bargain.sid);

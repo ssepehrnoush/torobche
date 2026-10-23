@@ -403,12 +403,26 @@ main { flex: 1; padding: 12px 12px 128px; display: flex; flex-direction: column;
 .mapbox { height: 320px; border-radius: var(--r); overflow: hidden; position: relative; z-index: 1; background: #eef2f6; }
 .mapbox.small { height: 220px; }
 .leaflet-container { font-family: var(--font); }
+/* A marker's box is 0 wide at its spot; in a right-to-left page its label would hang off to the left of it, so the box
+   lays out left-to-right and only the label inside reads right-to-left. */
+.leaflet-marker-icon { direction: ltr; }
+.leaflet-marker-icon > * { direction: rtl; }
 .pricepin {
   background: var(--surface); box-shadow: 0 0 0 1px var(--chip-line), 0 2px 8px rgba(15,23,42,.18); border-radius: 8px; padding: 0 7px; font-size: 11.5px; font-weight: 800;
   white-space: nowrap; transform: translate(-50%, -100%); display: inline-block; line-height: 1.9; color: var(--ink);
 }
 .pricepin.closed { color: var(--faint); }
 .pricepin.pick { background: var(--brand); color: #fff; box-shadow: 0 2px 8px rgba(233,30,51,.35); }
+.pricepin.cheap { color: var(--green); box-shadow: 0 0 0 2px var(--green), 0 2px 8px rgba(15,23,42,.18); }
+.pricepin.closed { opacity: .7; }
+/* the person: a pixel radish hopping over its shadow */
+.mascot { position: relative; width: 34px; height: 40px; }
+.mascot svg { position: absolute; left: 0; bottom: 5px; filter: drop-shadow(0 1px 0 rgba(255,255,255,.9)); animation: hop .9s cubic-bezier(.33, 0, .67, 1) infinite; }
+.mascot i { position: absolute; left: 50%; bottom: 1px; width: 22px; height: 6px; margin-left: -11px; border-radius: 50%; background: rgba(15, 23, 42, .28); animation: hopshadow .9s cubic-bezier(.33, 0, .67, 1) infinite; }
+.mascot .youlabel { bottom: calc(100% + 4px); }
+@keyframes hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes hopshadow { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.6); opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .mascot svg, .mascot i { animation: none; } }
 .youpin { width: 18px; height: 18px; border-radius: 50%; background: var(--blue-2); border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(59, 130, 246, .2); }
 .youpin.live { position: relative; box-shadow: 0 1px 4px rgba(15, 23, 42, .35); }
 .youpin.live::before, .youpin.live::after {

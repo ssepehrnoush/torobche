@@ -180,6 +180,10 @@ main.wz-main > :not(.wz-foot) { animation: wzin .26s var(--ease) both; }
 .gen-crow.head { box-shadow: none; align-items: start; }
 .gen-cprod { display: flex; flex-direction: column; align-items: center; gap: 4px; font-weight: 700; font-size: 12px; line-height: 1.6; }
 .gen-crow.pick .btn { width: 100%; }
+.wz-shopmap { position: relative; border-radius: var(--r); overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+.wz-shopmap .mapbox { transition: height .25s var(--ease); border-radius: 0; }
+.wz-mapbtn { position: absolute; z-index: 500; left: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px;
+  border-radius: 10px; background: var(--blue); color: #fff; font-size: 13px; font-weight: 800; box-shadow: 0 4px 12px rgba(37, 99, 235, .3); }
 .wz-cond { display: flex; flex-direction: column; gap: 8px; margin: 2px -16px 4px; padding: 0 16px; }
 .wz-cond .chips.nowrap { padding-bottom: 2px; }
 .wz-cond-pop { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 14px; background: var(--surface); }
