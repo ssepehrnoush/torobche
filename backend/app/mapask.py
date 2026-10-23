@@ -60,7 +60,7 @@ def _rules(text: str) -> dict:
 
 
 def _bare(s: object) -> str:
-    return re.sub(r"[\s‌‎‏]+", "", str(s)).replace("ي", "ی").replace("ك", "ک")
+    return re.sub(r"[\s\u200c\u200e\u200f]+", "", str(s)).replace("ي", "ی").replace("ك", "ک")
 
 
 def _value(k: str, v: object):
