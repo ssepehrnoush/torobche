@@ -453,7 +453,8 @@ async def _reach_ways(item: dict, channels: list[str], plan: dict, tok: str, liv
         elif plan["outcome"] == "closed":
             wait = 1.0
         else:
-            wait = plan["delay_s"] if answered and i == answer_on else CHANNEL_WAIT_S
+            # demo «با تماس»: the messages before the call take a little longer, so the call starts after the narration
+            wait = plan["delay_s"] if answered and i == answer_on else 5.2 if plan.get("answer_last") else CHANNEL_WAIT_S
         try:
             await asyncio.wait_for(page["event"].wait(), timeout=wait)
             await queue.put({"type": "reply", **_real_reply(item, page["answer"], ch)})
