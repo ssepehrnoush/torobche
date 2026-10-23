@@ -291,3 +291,34 @@ main.wz-main > :not(.wz-foot) { animation: wzin .26s var(--ease) both; }
 .mprev-you { position: absolute; width: 34px; height: 40px; margin: -38px 0 0 -17px; }
 .mprev-me { position: absolute; margin: -27px 0 0 -11px; }
 .mprev-way { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+/* the way into the mall as a story (MallStory) */
+.mstory-open { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px 8px 8px; border-radius: 16px; text-align: right;
+  background: linear-gradient(135deg, #e8f1fe, #fdecee); box-shadow: inset 0 0 0 1px #dbe4f3; color: var(--ink); }
+.mstory-open img { width: 54px; height: 72px; object-fit: cover; border-radius: 10px; flex: none; }
+.mstory-open b { font-size: 14.5px; color: var(--brand-ink); }
+.mstory { position: fixed; inset: 0; z-index: 95; background: #1b1d24; overflow: hidden; animation: fade .2s ease; }
+.mstory-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; animation: kenburns 4s ease-out both; }
+@keyframes kenburns { from { transform: scale(1.08); opacity: .4; } 15% { opacity: 1; } to { transform: scale(1); opacity: 1; } }
+.mstory-top { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: flex; align-items: center; gap: 8px; padding: calc(10px + env(safe-area-inset-top)) 10px 0 12px; }
+.mstory-bars { flex: 1; display: flex; gap: 5px; }
+.mstory-bars span { flex: 1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .45); overflow: hidden; position: relative; }
+.mstory-bars i { position: absolute; top: 0; right: 0; bottom: 0; background: #fff; }
+.mstory-x { background: rgba(255, 255, 255, .85); }
+.mstory-cap { position: absolute; z-index: 2; top: calc(34px + env(safe-area-inset-top)); left: 14px; right: 14px; display: flex; flex-direction: column; gap: 4px;
+  padding: 14px 16px; border-radius: 18px; background: rgba(255, 255, 255, .9); backdrop-filter: blur(6px); box-shadow: 0 6px 24px rgba(15, 23, 42, .18); animation: rise .45s var(--ease) both; }
+.mstory-kick { font-size: 12px; font-weight: 800; color: var(--brand); }
+.mstory-cap b { font-size: 21px; font-weight: 900; line-height: 1.6; color: var(--ink); }
+.mstory-cap > span:last-child { font-size: 14px; line-height: 1.8; color: var(--ink-2); }
+.mstory-lift { position: absolute; z-index: 2; top: 31%; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 12px;
+  background: #111827; color: #ff4d5e; box-shadow: 0 0 0 3px #374151, 0 8px 24px rgba(0, 0, 0, .35); font-family: ui-monospace, Menlo, monospace; animation: rise .4s var(--ease) both; }
+.mstory-lift b { direction: ltr; unicode-bidi: isolate; font-size: 30px; font-weight: 900; min-width: 44px; text-align: center; text-shadow: 0 0 10px rgba(255, 77, 94, .7); }
+.mstory-plate { position: absolute; z-index: 2; top: 36%; left: 48%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; padding: 8px 22px;
+  border-radius: 12px; background: #fff; color: var(--ink); box-shadow: 0 0 0 3px var(--brand), 0 10px 26px rgba(15, 23, 42, .3); animation: plate .5s var(--ease) .3s both; }
+.mstory-plate small { font-size: 12px; font-weight: 800; color: var(--brand); }
+.mstory-plate b { font-size: 30px; font-weight: 900; line-height: 1.2; }
+@keyframes plate { from { opacity: 0; transform: translate(-50%, 14px) scale(.85); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+.mstory-tap { position: absolute; z-index: 1; top: 0; bottom: 0; width: 50%; background: transparent; }
+.mstory-tap.next { left: 0; } .mstory-tap.back { right: 0; }
+.mstory-src { position: absolute; z-index: 2; bottom: calc(12px + env(safe-area-inset-bottom)); left: 0; right: 0; margin: 0; text-align: center; font-size: 11.5px; color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, .6); }
+@media (prefers-reduced-motion: reduce) { .mstory-img { animation: none; } }

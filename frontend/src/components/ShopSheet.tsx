@@ -1,13 +1,11 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 import { fa, jalali, toman } from "../fmt";
 import { Icon } from "../icons";
-import type { Authenticity, Ctx, MallBuilding as Building, MallGuide, ShopDetail } from "../types";
+import type { Authenticity, Ctx, MallGuide, ShopDetail } from "../types";
 import { Fold, MetroStrip, OpenText } from "./bits";
-import { MallBuilding } from "./MallBuilding";
-import { MASCOT_SVG } from "./mascot";
+import { MallStory } from "./MallStory";
 
-const Mall3D = lazy(() => import("./mall3d/Mall3D"));
 import { useNavPick } from "./NavPick";
 import { Sheet } from "./Sheet";
 import { freshTone } from "./ShopsView";
@@ -28,7 +26,6 @@ export function ShopSheet({ sid, pid, ctx, auth, onClose, onInquiry, onVisit, on
   const [d, setD] = useState<ShopDetail | null>(null);
   const [err, setErr] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({ guide: true });
-  const [show3d, setShow3d] = useState(false);
   const nav = useNavPick();
   const flip = (k: string) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   useEffect(() => {
@@ -94,7 +91,7 @@ export function ShopSheet({ sid, pid, ctx, auth, onClose, onInquiry, onVisit, on
           <div className="folds">
             {d.mall_guide && (
               <Fold title="مسیر داخل پاساژ" summary={[d.mall_guide.floor, d.mall_guide.unit ? `واحد ${d.mall_guide.unit}` : ""].filter(Boolean).join("، ")} open={!!open.guide} onToggle={() => flip("guide")}>
-                <Guide g={d.mall_guide} b={d.mall_building} arrive={d.arrive} onOpenShop={onOpenShop} on3d={d.mall3d ? () => setShow3d(true) : undefined} />
+                <Guide g={d.mall_guide} shop={d.name} onOpenShop={onOpenShop} />
               </Fold>
             )}
             <Fold title="ساعت کاری ثبت‌شده" summary={today ? `امروز ${today.text}` : undefined} open={!!open.hours} onToggle={() => flip("hours")}>
@@ -140,38 +137,24 @@ export function ShopSheet({ sid, pid, ctx, auth, onClose, onInquiry, onVisit, on
         </>
       )}
     </Sheet>
-    {show3d && <Suspense fallback={null}><Mall3D sid={sid} pid={pid} ctx={ctx} onClose={() => setShow3d(false)} /></Suspense>}
     </>
   );
 }
 
-/** Inside the mall: for someone at its door one plain sentence (shown by itself when their spot is already there),
-    the floors drawn as a building, then the steps. */
-function Guide({ g, b, arrive, onOpenShop, on3d }: {
-  g: MallGuide; b: Building | null; arrive: ShopDetail["arrive"]; onOpenShop: (sid: number) => void; on3d?: () => void;
-}) {
-  const [here, setHere] = useState(!!arrive?.near);
+/** Inside the mall: the way in as a short illustrated story (door, lift, the shop's plate), then the steps. */
+function Guide({ g, shop, onOpenShop }: { g: MallGuide; shop: string; onOpenShop: (sid: number) => void }) {
+  const [story, setStory] = useState(false);
   return (
     <div className="stack" style={{ gap: 12 }}>
-      {arrive && (here ? (
-        <div className="atdoor fadein">
-          <span className="atdoor-ic" dangerouslySetInnerHTML={{ __html: MASCOT_SVG }} />
-          <span className="stack" style={{ gap: 2 }}><b>{arrive.title}</b><span>{arrive.text}</span></span>
-        </div>
-      ) : (
-        <button className="textbtn atdoor-btn" onClick={() => setHere(true)}><Icon name="pin" size={16} /> الان دم پاساژم، کجا برم؟</button>
-      ))}
-      {on3d && (
-        <button className="m3d-open" onClick={on3d}>
-          <span className="m3d-open-ico" dangerouslySetInnerHTML={{ __html: MASCOT_SVG }} />
-          <span className="grow stack" style={{ gap: 0 }}>
-            <b>پاساژ رو سه‌بعدی ببین</b>
-            <span className="meta">تربچه از در ورودی راه رو تا همین مغازه نشونت می‌ده</span>
-          </span>
-          <Icon name="left" size={18} />
-        </button>
-      )}
-      {b && <MallBuilding b={b} onOpenShop={onOpenShop} />}
+      <button className="mstory-open" onClick={() => setStory(true)}>
+        <img src="/reach/story_entrance.webp" alt="" />
+        <span className="grow stack" style={{ gap: 0 }}>
+          <b>راهِ رسیدن به مغازه رو ببین</b>
+          <span className="meta">از در پاساژ تا جلوی همین واحد، در سه قدم</span>
+        </span>
+        <Icon name="left" size={18} />
+      </button>
+      {story && <MallStory g={g} shop={shop} onClose={() => setStory(false)} />}
       <div className="guidewrap">
         <ol className="guide grow">
           {g.steps.map((s, i) => (
@@ -181,17 +164,6 @@ function Guide({ g, b, arrive, onOpenShop, on3d }: {
             </li>
           ))}
         </ol>
-        {!b && g.floors.length > 1 && (
-          <div className="floors" aria-label="طبقات پاساژ">
-            <span className="meta center">{g.mall_name ?? "پاساژ"}</span>
-            {[...g.floors].sort((a, b) => b.num - a.num).map((f) => (
-              <div key={f.num} className={"floor" + (f.target ? " target" : "")}>
-                <span>{f.num === 0 ? "همکف" : f.num < 0 ? `منفی ${fa(-f.num)}` : `طبقه ${fa(f.num)}`}</span>
-                <span>{fa(f.shops)}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
       {g.landmarks.length > 0 && (
         <div className="stack" style={{ gap: 6 }}>

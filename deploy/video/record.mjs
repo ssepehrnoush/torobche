@@ -380,28 +380,18 @@ await waitFor("document.querySelector('.sheet')", 15000, false);
 await hold(0.6);
 await say();
 await hold(0.8);
-// the floors drawn as a building: the radish at the entrance, the way to the red pin, the green shops
-await js("document.querySelector('.sheet .mallbld')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); true");
+// the way in as a short story: the mall's door, the lift counting to the shop's floor, the shop's unit plate
+await js("document.querySelector('.sheet .mstory-open')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); true");
 await untilSpoken(0.2);
-await say((await js("document.querySelectorAll('.sheet .mb-offer').length")) ? null : "mall-1-plain");
-await untilSpoken(-0.8);
-await js("document.querySelector('.sheet .fold')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); true");
-await hold(0.5);
-await tapEl("document.querySelector('.sheet .atdoor-btn')", { scroll: false });
+await tapEl("document.querySelector('.sheet .mstory-open')", { scroll: false });
+await waitFor("document.querySelector('.mstory')", 8000, false);
+await hold(0.4);
 await say();
-// Alaeddin in 3D: the radish walks from the street up the lift to the shop
-if (await js("!!document.querySelector('.sheet .m3d-open')")) {
-  await untilSpoken(0.2);
-  await js("document.querySelector('.sheet .m3d-open').scrollIntoView({ block: 'center', behavior: 'smooth' }); true");
-  await hold(0.7);
-  await tapEl("document.querySelector('.sheet .m3d-open')", { scroll: false });
-  await waitFor("window.__mall3d", 20000, false);
-  await hold(0.3);
-  const arrive = await js("window.__mall3d.times.arrive");
-  await film3d(Math.min(arrive + 5, 26), [[0.4, null]]);
-  await tapEl(`document.querySelector('.m3d .iconbtn[aria-label="بستن"]')`, { scroll: false });
-  await hold(0.4);
-}
+await waitFor("document.querySelector('.mstory')?.dataset.card === '2'", 15000, false);
+await hold(3.4);
+await untilSpoken(0.2);
+await tapEl("document.querySelector('.mstory-x')", { scroll: false });
+await hold(0.4);
 await endScene();
 await tapEl("document.querySelector('.backdrop')", { scroll: false });
 await hold(0.4);
