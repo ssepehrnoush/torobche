@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { MapPreview } from "../MapPreview";
 import { api } from "../../api";
 import { fa, short, shortPlace, toman } from "../../fmt";
 import { Icon } from "../../icons";
@@ -148,9 +149,8 @@ export function ShopsStep({ pid, ctx, setCtx, picks, need, onBack, onAsk, onGo, 
 const STRIP_H = 150;
 const OPEN_H = 380;
 
-/** The near shops on a map, like Torob's own: a short strip above the list that opens to full size. Each shop is
-    only its price (a tap ticks it or not); the ticked ones in the brand colour, the cheapest outlined in green,
-    the ones closed when the person gets there faded. The person is the hopping radish. */
+/** The near shops on a map, like Torob's own: a short illustrated strip above the list (blue pins, the hopping
+    radish) that opens the real map, each shop a pin with its price above it; a tap ticks it or not. */
 function ShopMap({ near, ctx, sel, cheapest, onToggle }: {
   near: ShopOffer[]; ctx: Ctx; sel: number[]; cheapest: number | null; onToggle: (sid: number) => void;
 }) {
@@ -159,13 +159,14 @@ function ShopMap({ near, ctx, sel, cheapest, onToggle }: {
     id: i.sid, lat: i.lat, lon: i.lon, label: i.price ? short(i.price) : "؟",
     tone: sel.includes(i.sid) ? "pick" as const : i.open_at_visit.state === "closed" ? "closed" as const : i.sid === cheapest ? "cheap" as const : "normal" as const,
   }));
+  if (!open) return <div className="wz-shopmap"><MapPreview you={{ lat: ctx.lat, lon: ctx.lon }} pins={pins} onOpen={() => setOpen(true)} height={STRIP_H} /></div>;
   return (
     <div className="wz-shopmap">
-      <Suspense fallback={<div className="shimmer mapbox" style={{ height: STRIP_H }} />}>
-        <MapView you={{ lat: ctx.lat, lon: ctx.lon }} pins={pins} onPick={onToggle} height={open ? OPEN_H : STRIP_H} />
+      <Suspense fallback={<div className="shimmer mapbox" style={{ height: OPEN_H }} />}>
+        <MapView you={{ lat: ctx.lat, lon: ctx.lon }} pins={pins} onPick={onToggle} height={OPEN_H} chips />
       </Suspense>
-      <button className="wz-mapbtn" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <Icon name={open ? "up" : "map"} size={16} /> {open ? "کوچیک کن" : "فروشگاه‌ها روی نقشه"}
+      <button className="wz-mapbtn" onClick={() => setOpen(false)} aria-expanded="true">
+        <Icon name="up" size={16} /> کوچیک کن
       </button>
     </div>
   );

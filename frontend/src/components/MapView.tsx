@@ -1,13 +1,14 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useState } from "react";
-import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, Marker, Polyline, useMap, useMapEvents } from "react-leaflet";
 import type { MapPath } from "../types";
 import { mascotHtml } from "./mascot";
+import { pinHtml } from "./pins";
+import { TorobTiles } from "./torobTiles";
 
 export type MapPin = { id: number; lat: number; lon: number; label: string; tone?: "normal" | "closed" | "pick" | "cheap" };
 
-const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 function Fit({ points, top = 36 }: { points: [number, number][]; top?: number }) {
   const map = useMap();
@@ -50,9 +51,9 @@ export const liveIcon = (label: string) => L.divIcon({
 
 const RANK: Record<string, number> = { pick: 0, cheap: 1, normal: 2, closed: 3 };
 
-/** Price labels that would sit on a more important one wait for a closer zoom (shops in one mall share a spot),
-    so the map never shows a pile of numbers: ticked shops first, then the cheapest, then the rest. */
-function Pins({ pins, onPick, all, you }: { pins: MapPin[]; onPick?: (id: number) => void; all?: boolean; you: { lat: number; lon: number } }) {
+/** Pins that would sit on a more important one wait for a closer zoom (shops in one mall share a spot), so the map
+    never shows a pile: ticked shops first, then the cheapest, then the rest. */
+function Pins({ pins, onPick, all, you, chips }: { pins: MapPin[]; onPick?: (id: number) => void; all?: boolean; you: { lat: number; lon: number }; chips?: boolean }) {
   const map = useMap();
   const [shown, setShown] = useState<MapPin[]>([]);
   const layout = () => {
@@ -62,7 +63,7 @@ function Pins({ pins, onPick, all, you }: { pins: MapPin[]; onPick?: (id: number
     const out: MapPin[] = [];
     for (const p of [...pins].sort((a, b) => RANK[a.tone ?? "normal"] - RANK[b.tone ?? "normal"])) {
       const pt = map.latLngToContainerPoint([p.lat, p.lon]);
-      const box = { x: pt.x, y: pt.y - 11, w: p.label.length * 5 + 12, h: 22 };
+      const box = chips ? { x: pt.x, y: pt.y - 27, w: Math.max(28, p.label.length * 5 + 14), h: 54 } : { x: pt.x, y: pt.y - 18, w: 26, h: 34 };
       if (!all && kept.some((k) => Math.abs(k.x - box.x) < (k.w + box.w) / 2 + 2 && Math.abs(k.y - box.y) < (k.h + box.h) / 2 + 2)) continue;
       kept.push(box);
       out.push(p);
@@ -78,11 +79,7 @@ function Pins({ pins, onPick, all, you }: { pins: MapPin[]; onPick?: (id: number
           key={p.id}
           position={[p.lat, p.lon]}
           zIndexOffset={(3 - RANK[p.tone ?? "normal"]) * 100}
-          icon={L.divIcon({
-            className: "",
-            html: `<div class="pricepin ${p.tone && p.tone !== "normal" ? p.tone : ""}">${p.label}</div>`,
-            iconSize: [0, 0],
-          })}
+          icon={L.divIcon({ className: "", html: pinHtml(p.tone, p.label, !!chips), iconSize: [28, 36], iconAnchor: [14, 34] })}
           eventHandlers={{ click: () => onPick?.(p.id) }}
         />
       ))}
@@ -103,7 +100,7 @@ function PathLine({ p }: { p: MapPath }) {
   );
 }
 
-export function MapView({ you, youLabel, pins, route, paths, onPick, small, height, allPins }: {
+export function MapView({ you, youLabel, pins, route, paths, onPick, small, height, allPins, chips }: {
   you: { lat: number; lon: number };
   youLabel?: string;
   pins: MapPin[];
@@ -113,18 +110,19 @@ export function MapView({ you, youLabel, pins, route, paths, onPick, small, heig
   small?: boolean;
   height?: number; // a set height instead of the small or the regular one
   allPins?: boolean; // every pin always (the stops of a route), none waiting for a closer zoom
+  chips?: boolean; // each shop's price above its pin
 }) {
   const pts: [number, number][] = [[you.lat, you.lon], ...pins.map((p) => [p.lat, p.lon] as [number, number]),
     ...(paths ?? []).flatMap((p) => (p.real ? p.points : []))];
   return (
     <div className={"mapbox" + (small ? " small" : "")} style={height ? { height } : undefined}>
       <MapContainer center={[you.lat, you.lon]} zoom={14} style={{ height: "100%", width: "100%" }} zoomControl={false} attributionControl>
-        <TileLayer url={TILE_URL} attribution="&copy; OpenStreetMap" maxZoom={19} />
+        <TorobTiles />
         <Fit points={pts} top={youLabel ? 84 : 44} /* room above the radish (and its label) at the top edge */ />
         <Marker position={[you.lat, you.lon]} icon={youLabel ? liveIcon(youLabel) : youIcon} zIndexOffset={youLabel ? 1000 : 0} />
         {paths?.length ? paths.map((p, i) => <PathLine key={i} p={p} />)
           : route && route.length > 1 && <Polyline positions={route} pathOptions={DOTTED} />}
-        <Pins pins={pins} onPick={onPick} all={allPins} you={you} />
+        <Pins pins={pins} onPick={onPick} all={allPins} you={you} chips={chips} />
       </MapContainer>
     </div>
   );

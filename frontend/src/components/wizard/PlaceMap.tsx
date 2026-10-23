@@ -1,12 +1,12 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useState } from "react";
-import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, Marker, useMap, useMapEvents } from "react-leaflet";
+import { TorobTiles } from "../torobTiles";
 import { fa } from "../../fmt";
 import type { PlaceArea } from "../../types";
 import { liveIcon } from "../MapView";
 
-const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const TEHRAN: [number, number] = [35.72, 51.41];
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
@@ -84,7 +84,7 @@ export function PlaceMap({ areas, chosen, you, onArea, onTap }: {
     <div className="mapbox wz-map">
       <MapContainer center={chosen ? [chosen.lat, chosen.lon] : TEHRAN} zoom={chosen ? 14 : 12} minZoom={11}
         style={{ height: "100%", width: "100%" }} zoomControl={false} attributionControl>
-        <TileLayer url={TILE_URL} attribution="&copy; OpenStreetMap" maxZoom={19} />
+        <TorobTiles />
         <Taps onTap={onTap} />
         <Follow at={chosen} />
         <Areas areas={areas} chosen={chosen?.label ?? null} onArea={onArea} />
