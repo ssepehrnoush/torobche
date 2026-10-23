@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>تربچه · ویدیوی دمو</title>
+  <meta name="description" content="دموی تربچه، دستیار خرید حضوری روی دادهٔ ترب با صفحه‌هایی که هوش مصنوعی می‌سازد: انتخاب کالا، فروشگاه‌های نزدیک روی نقشه، پرسیدن از خود مغازه و مسیر رفتن.">
+  <meta property="og:title" content="تربچه · ویدیوی دمو (۵:۲۱)">
+  <meta property="og:description" content="دستیار خرید حضوری روی دادهٔ ترب، با صفحه‌هایی که هوش مصنوعی می‌سازد.">
+  <meta property="og:image" content="https://ssepehrnoush.github.io/torobche/poster.jpg">
+  <meta property="og:video" content="https://ssepehrnoush.github.io/torobche/torobche-demo.mp4">
+  <meta property="og:type" content="video.other">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #f4f6fa; --ink: #0f172a; --muted: #5b6475; --line: #e6eaf1; --brand: #e91e33; --leaf: #6fbc23; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: Vazirmatn, Tahoma, sans-serif; line-height: 1.8; }
+    main { max-width: 1080px; margin: 0 auto; padding: 36px 16px 56px; }
+    .top { display: flex; align-items: center; gap: 14px; }
+    .top svg { flex: none; }
+    .kicker { color: var(--brand); font-weight: 700; font-size: 15px; }
+    h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 900; margin: 0; line-height: 1.3; }
+    .sub { color: var(--muted); margin: 14px 0 24px; font-size: 17px; }
+    .player { border-radius: 20px; overflow: hidden; background: #000; box-shadow: 0 20px 60px rgba(15, 23, 42, .18); }
+    video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; }
+    .links { display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0 28px; }
+    .links a { text-decoration: none; color: var(--ink); border: 2px solid var(--line); border-radius: 999px; padding: 7px 18px; font-weight: 700; font-size: 15px; background: #fff; }
+    .links a.main { background: var(--brand); border-color: var(--brand); color: #fff; }
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+    .steps li { background: #fff; border-radius: 16px; padding: 14px 16px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); font-size: 15px; }
+    .steps b { display: block; color: var(--ink); font-size: 16px; margin-bottom: 2px; }
+    .steps i { font-style: normal; color: var(--brand); font-weight: 900; margin-left: 6px; }
+    footer { color: var(--muted); font-size: 13px; margin-top: 30px; border-top: 1px solid var(--line); padding-top: 14px; }
+    a { color: var(--brand); }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="top">
+      <svg width="52" height="52" viewBox="0 0 88 88" aria-hidden="true">
+        <path fill="#e91e33" d="M79.245 20.322l-.627.726c-2.474 2.656-5.814 4.2-9.462 4.313-.16.023-.342.023-.502.023-.456 0-.878-.023-1.31-.068 8.595 10.1 9.895 24.968 2.222 36.579-7.638 11.542-21.774 16.252-34.428 12.484h-.08c-5.13-1.34-10.944.68-14.022 5.414 3.192-4.847 2.736-11.055-.798-15.322v-.045c-8.333-10.079-9.473-24.72-1.87-36.16C26.692 15.67 42.766 11.22 56.195 17.031c-.57-1.476-.935-3.065-1.026-4.688-.114-2.95.741-5.788 2.371-8.171-18.012-5.902-38.532.567-49.476 17.137C-5.104 41.171.425 67.842 20.261 80.893c19.882 13.064 46.592 7.502 59.702-12.246 10.032-15.174 9.177-34.331-.707-48.348l-.011.023z"/>
+        <path fill="#bf0f22" d="M31.969 10.22c-10.91 1.08-20.463 5.721-24.054 11.191C-5.195 41.216.3 67.853 20.193 80.905l.73-1.112c3.191-4.847 2.735-11.055-.799-15.322v-.045c-8.22-10.079-9.36-24.72-1.835-36.16C26.61 15.67 42.685 11.22 56.114 17.031c0 0-11.4-8.059-24.122-6.81h-.023z"/>
+        <path fill="#6fbc23" d="M62.544 22.32s-.342-4.086 1.482-7.037c1.824-2.951 5.7-5.845 10.602-5.539 4.925.307 5.723 1.442 5.723 1.442s.114 3.972-1.254 6.242-4.218 5.606-8.322 6.446c-4.104.829-8.231-1.555-8.231-1.555z"/>
+        <path fill="#519a23" d="M61.062 21.173s-.456-3.972 2.28-7.944c2.736-3.973 5.7-4.563 5.7-4.563S68.7 3.218 66.078.608c.228-.057-3.124.08-6.042 3.291-2.577 2.815-4.104 7.264-2.964 11.577 1.14 4.312 3.99 5.697 3.99 5.697z"/>
+      </svg>
+      <div>
+        <div class="kicker">چالش ترب · هکاتون Agentic AI استارکوچ</div>
+        <h1>تربچه</h1>
+      </div>
+    </div>
+    <p class="sub">دستیار خرید حضوری روی دادهٔ ترب، با صفحه‌هایی که هوش مصنوعی می‌سازد. مدل مناسب را پیدا می‌کند، مغازه‌هایی را که موقع رسیدنت بازند روی نقشه مقایسه می‌کند، از خود مغازه واقعاً می‌پرسد، و تا در مغازه همراهت است. این ویدیو از اجرای واقعی همین کد ضبط شده است.</p>
+    <div class="player">
+      <video controls preload="metadata" playsinline poster="poster.jpg">
+        <source src="torobche-demo.mp4" type="video/mp4">
+        مرورگر شما ویدیو را پخش نمی‌کند؛ <a href="torobche-demo.mp4">فایل را دانلود کنید</a>.
+      </video>
+    </div>
+    <div class="links">
+      <a class="main" href="https://torobche.liara.run">اپ زنده: torobche.liara.run</a>
+      <a href="https://github.com/ssepehrnoush/torobche">کد و مستندات در گیت‌هاب</a>
+      <a href="torobche-demo.mp4" download>دانلود ویدیو (MP4)</a>
+    </div>
+    <ol class="steps">
+      <li><b><i>۱</i>انتخاب کالا</b>نیازت را همان‌طور که به فروشنده می‌گویی می‌نویسی؛ صفحهٔ بعد را هوش مصنوعی می‌سازد، مثلاً اسلایدر دوسرِ بودجه از قیمت‌های واقعی همان کالا.</li>
+      <li><b><i>۲</i>فروشگاه‌های نزدیک</b>باز بودن در زمان رسیدنت، قیمت چند روز پیش، و نقشه‌ای که می‌شود به آن گفت چه نشان بدهد: «ارزون‌ترین سه تا که الان بازن».</li>
+      <li><b><i>۳</i>داخل پاساژ</b>طبقه، واحد و مغازه‌های بغلی، و یک استوری کوتاه از در پاساژ تا جلوی واحد مغازه.</li>
+      <li><b><i>۴</i>پرسیدن و رفتن</b>از چند مغازه هم‌زمان می‌پرسد، از همان راهی که خودشان خواسته‌اند؛ جواب یک‌لمسی، کد رزرو و مسیر روی خیابان‌های واقعی.</li>
+    </ol>
+    <footer>۵:۲۱ · صدای فارسی و زیرنویس · ضبط‌شده از اجرای واقعی با ساعت ثابت شنبه ۱۱ صبح تا مغازه‌ها باز باشند · مدل gpt-4.1-mini.</footer>
+  </main>
+</body>
+</html>

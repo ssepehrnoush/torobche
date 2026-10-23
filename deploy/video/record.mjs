@@ -20,7 +20,7 @@ const CHROME = process.env.CHROME || "C:/Program Files/Google/Chrome/Application
 const PORT = 9343;
 const W = 390, H = 844, DPR = 1.25; // 488x1055 frames
 const CLOCK = Date.parse("2026-10-24T07:30:00Z"); // 11:00 in Tehran, the recording server's FIXED_NOW
-const NEED = "یه هدفون بی‌سیم می‌خوام، مدلش رو نمی‌دونم. نزدیک میدان ولیعصر، با ماشین";
+const NEED = "یه هدفون بی‌سیم خوب می‌خوام، مدلش رو نمی‌دونم. نزدیک میدان ولیعصر، با ماشین";
 
 const narration = JSON.parse(readFileSync(join(HERE, "narration.json"), "utf8")).scenes;
 const voice = JSON.parse(readFileSync(join(ROOT, "_video", "voice", "manifest.json"), "utf8"));
@@ -228,16 +228,27 @@ async function type(sel, text) {
   }
   tick();
 }
-async function slide(to, sec = 1.6) {
-  // drag the budget slider from where it rests to `to`, in small steps a hand would make
-  const from = await js("+document.querySelector('.gen-budget input[type=range]').value");
+async function slide(end, to, sec = 1.6) {
+  // drag one end of the budget slider (0 the floor, 1 the top) from where it rests to `to`, in small steps a hand would make
+  const el = `document.querySelectorAll('.gen-budget input[type=range]')[${end}]`;
+  const from = await js(`+${el}.value`);
   const steps = Math.round(sec * 20);
   for (let i = 1; i <= steps; i++) {
     const v = Math.round(from + ((to - from) * i) / steps);
-    await js(`(() => { const el = document.querySelector('.gen-budget input[type=range]');
+    await js(`(() => { const el = ${el};
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ${v});
       el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true })()`);
     await sleep(50);
+  }
+  tick();
+}
+async function typeInput(sel, text) {
+  // the same, for a one-line input (talking to the map)
+  for (let i = 2; i <= text.length + 1; i += 2) {
+    await js(`(() => { const el = document.querySelector(${JSON.stringify(sel)});
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ${JSON.stringify(text)}.slice(0, ${i}));
+      el.dispatchEvent(new Event('input', { bubbles: true })); return true })()`);
+    await sleep(45);
   }
   tick();
 }
@@ -270,6 +281,14 @@ await say();
 await hold(1.0);
 await smoothScroll(-220, 0.9);
 await say();
+// Torob's categories under the hero: one opens its leaves from the dataset, with their product counts, in place
+await untilSpoken(-1.2);
+await tapEl("document.querySelector('.wz-cat')", { scroll: false });
+await hold(0.3);
+await say();
+await hold(1.4);
+await untilSpoken(0.2);
+await tapEl("document.querySelector('.wz-cat.on')", { scroll: false });
 await endScene(0.3);
 
 // 2) the need in one sentence; the model builds the next screen (a budget slider from real prices)
@@ -285,8 +304,13 @@ await hold(0.6);
 await say();
 await hold(1.2);
 await say();
-await hold(1.5);
-await slide(5_100_000);
+await hold(2.4);
+// both ends: the top down to about 5 million, then the floor up a little (the whole range to begin with)
+const [bMin, bMax, bStep] = await js("(() => { const i = document.querySelector('.gen-budget input[type=range]'); return [+i.min, +i.max, +i.step]; })()");
+await slide(1, Math.min(bMax, Math.max(bMin + 4 * bStep, 5_100_000)));
+await hold(0.4);
+await slide(0, Math.round((bMin + (Math.min(bMax, 5_100_000) - bMin) * 0.18) / bStep) * bStep, 1.2);
+log("budget", bMin, bMax, bStep, await js("document.querySelector('.gen-budget-v')?.innerText"));
 await untilSpoken(0.2);
 await tapEl(NEXT, { scroll: false });
 await endScene(0);
@@ -309,10 +333,11 @@ const prodIx = await js(`(async () => {
   let best = 0, score = -1;
   for (let k = 0; k < pids.length; k++) {
     const r = await post('/api/shops', { pid: pids[k], ctx, sort: 'best', exclude: [] });
-    let sc = 0;
+    // the map is asked for the three cheapest open shops later, so a model with few shops nearby comes last
+    let sc = r.items.filter((i) => i.in_radius && i.open_at_visit?.state !== 'closed').length >= 6 ? 0 : -100000;
     for (const c of r.items.filter((i) => i.in_radius && i.mall_name).slice(0, 6)) {
       const b = (await post('/api/shop', { sid: c.sid, pid: pids[k], ctx })).mall_building;
-      if (b) sc = Math.max(sc, (c.mall_name === 'پاساژ علاالدین' ? 1000 : 0) + Math.min(b.offers, 3) * 100 + b.floors.length);
+      if (b) sc = Math.max(sc, (sc < 0 ? -100000 : 0) + (c.mall_name === 'پاساژ علاالدین' ? 1000 : 0) + Math.min(b.offers, 3) * 100 + b.floors.length);
     }
     if (sc > score) { score = sc; best = k; }
   }
@@ -345,12 +370,27 @@ await tapEl("[...document.querySelectorAll('.wz-cond button')].find((b) => b.tex
 await hold(0.8);
 await tapEl(byText("تا ۳۰ دقیقه", ".wz-cond-pop button"), { scroll: false });
 await waitFor("document.querySelectorAll('.wz-shop').length >= 1 && document.querySelector('.gen-best, .gen-badge')", 20000);
-// the map strip opens full size: each shop only its price, the person the hopping radish
+// the map strip opens full size: each shop a Torob-logo pin with its price; then the map is told what to show
 await untilSpoken(-0.6);
 await tapEl(byText("فروشگاه‌ها روی نقشه", ".wz-mapbtn"), { scroll: false });
 await hold(0.5);
+await js("document.querySelector('.wz-shopmap')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); true");
 await say();
-await untilSpoken(0.6);
+await untilSpoken(-1.5);
+await tapEl("document.querySelector('.mapask-box input')", { scroll: false });
+await typeInput(".mapask-box input", "ارزون‌ترین سه تا که الان بازن");
+await hold(0.3);
+await tapEl("document.querySelector('.mapask-box .sendbtn')", { scroll: false });
+await waitFor("document.querySelector('.mapask-say')", 20000);
+const asked = await js("document.querySelector('.mapask-say')?.innerText");
+log("map ask:", asked);
+if (!/^۳ مغازه/.test(asked || "")) quit(6, "MAP-ASK: the map did not pin three shops this time");
+await js("document.querySelector('.wz-shopmap')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); true");
+await hold(1.6);
+await say();
+await hold(3.2);
+await tapEl(byText("همینا رو انتخاب کن", ".mapask-say button"), { scroll: false });
+await untilSpoken(0.4);
 await tapEl(byText("کوچیک کن", ".wz-mapbtn"), { scroll: false });
 await endScene(0.3);
 
@@ -513,8 +553,8 @@ await waitFor("document.querySelector('.sheet')", 10000, false);
 await say();
 await hold(1.5);
 await smoothScroll(420, 2.2, ".sheet .sheetbody");
-await say();
-await hold(1.0);
+scene.lineIx++; // outro-1 (the voice conversation that was tried) is no longer said, to keep the video near five minutes
+await untilSpoken(0.6);
 await smoothScroll(300, 1.6, ".sheet .sheetbody");
 await say();
 await endScene(1.0);
