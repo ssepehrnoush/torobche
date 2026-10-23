@@ -181,7 +181,7 @@ async function type(sel, text) {
   // type like a person: a few characters at a time into the React-controlled input
   for (let i = 2; i <= text.length + 1; i += 2) {
     await js(`(() => { const el = document.querySelector(${JSON.stringify(sel)});
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ${JSON.stringify(text)}.slice(0, ${i}));
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, ${JSON.stringify(text)}.slice(0, ${i}));
       el.dispatchEvent(new Event('input', { bubbles: true })); return true })()`);
     await sleep(45);
   }
@@ -233,9 +233,9 @@ await endScene(0.3);
 
 // 2) the need in one sentence; the model builds the next screen (a budget slider from real prices)
 beginScene("need");
-await tapEl("document.querySelector('.wz-field input')", { scroll: false });
+await tapEl("document.querySelector('.wz-field textarea')", { scroll: false });
 await say();
-await type(".wz-field input", NEED);
+await type(".wz-field textarea", NEED);
 await untilSpoken(0.2);
 await tapEl(NEXT, { scroll: false });
 await waitFor(`${ready} && document.querySelector('.gen-badge')`);

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { fa, short, toman } from "../../fmt";
 import { Icon } from "../../icons";
 import type { GenAnswer, GenScreen } from "../../types";
 import { Img } from "../Products";
-import { Choice, LogoSpin, StepHead, WizFoot } from "./Shell";
+import { Sheet } from "../Sheet";
+import { Choice, GrowText, LogoSpin, StepHead, WizFoot } from "./Shell";
 
 /** Which block the model picked, and why: shown on top of every generated screen. */
 export function GenBadge({ s }: { s: { source: string; why: string } }) {
@@ -119,8 +121,7 @@ function GenProducts({ s, busy, onBack, onPick, onAnswer, onRestart }: {
 }) {
   const items = s.products ?? [];
   const [sel, setSel] = useState<number | null>(items.length === 1 ? items[0].pid : null);
-  const [more, setMore] = useState("");
-  const [ask, setAsk] = useState(!items.length); // nothing found: the box to say it another way is open already
+  const [ask, setAsk] = useState(!items.length); // nothing found: the chat to say it another way is open already
   return (
     <>
       <GenBadge s={s} />
@@ -144,18 +145,49 @@ function GenProducts({ s, busy, onBack, onPick, onAnswer, onRestart }: {
       {items.length > 0 && !items.some((p) => p.n_nearby) && (
         <p className="footnote"><Icon name="info" size={13} /> هیچ‌کدوم از این‌ها این دور و بر فروشگاه نداره؛ توی صفحهٔ بعد وسیله یا محدوده رو عوض کن.</p>
       )}
-      {ask ? (
-        <form className="wz-field sm fadein" onSubmit={(e) => { e.preventDefault(); if (more.trim()) onAnswer({ q: "توضیح بیشتر", a: more.trim() }); }}>
-          <input autoFocus value={more} onChange={(e) => setMore(e.target.value)} placeholder="مثلاً: ارزون‌تر، یا فقط سامسونگ" aria-label="توضیح بیشتر" />
-          <button className="sendbtn" type="submit" disabled={busy || !more.trim()} aria-label="ارسال"><Icon name="up" size={20} stroke={2} /></button>
-        </form>
-      ) : (
-        <button className="textbtn center" onClick={() => setAsk(true)}>هیچ‌کدوم نیست؟ دقیق‌تر بگو</button>
-      )}
+      <button className="textbtn center" onClick={() => setAsk(true)}>
+        <Icon name="chat" size={16} /> {items.length ? "هیچ‌کدوم نیست؟ دقیق‌تر بگو" : "یه جور دیگه بنویس"}
+      </button>
+      {ask && <RefineChat busy={busy} empty={!items.length} onClose={() => setAsk(false)} onSend={(a) => onAnswer({ q: "توضیح بیشتر", a })} />}
       <WizFoot onBack={onBack} next={items.length
         ? { label: <>دیدن فروشگاه‌ها <Icon name="left" size={18} /></>, onClick: () => sel != null && onPick(sel), disabled: sel == null || busy }
         : { label: <><Icon name="refresh" size={18} /> از اول بنویس</>, onClick: onRestart, disabled: busy }} />
     </>
+  );
+}
+
+const REFINE_IDEAS = ["ارزون‌تر", "باکیفیت‌تر", "یه برند دیگه", "فقط اورجینال"];
+
+/** «دقیق‌تر بگو» as a short chat: the assistant asks what to change, the person answers in their own words (or taps
+    an idea), and the next screen is built from that. */
+function RefineChat({ busy, empty, onClose, onSend }: { busy: boolean; empty: boolean; onClose: () => void; onSend: (a: string) => void }) {
+  const [text, setText] = useState("");
+  const send = (t: string) => { if (t.trim() && !busy) onSend(t.trim()); };
+  // rendered on the body: the screen it opens from is animated with a transform, and a fixed sheet inside a
+  // transformed box is placed relative to that box, off the screen, so a tap seemed to do nothing
+  return createPortal(
+    <Sheet title="دقیق‌تر بگو" onClose={onClose} footer={
+      <div className="wz-field wz-chatbox">
+        <GrowText value={text} onChange={setText} onEnter={() => send(text)} label="توضیح بیشتر" autoFocus
+          placeholder="مثلاً: ارزون‌تر، یا فقط سامسونگ، یا برای ورزش" />
+        <button className="sendbtn" onClick={() => send(text)} disabled={busy || !text.trim()} aria-label="بفرست"><Icon name="up" size={20} stroke={2} /></button>
+      </div>
+    }>
+      <div className="wz-chat">
+        <div className="wz-chat-ai">
+          <Icon name="spark" size={16} />
+          <span>{empty
+            ? "با این توضیح توی ترب چیزی پیدا نکردم. یه جور دیگه بگو چی می‌خوای، خودم دوباره می‌گردم."
+            : "بگو چی رو عوض کنم: بودجه، برند، کاربری یا هر چیزی که مهمه. با همین، کالاهای تازه پیدا می‌کنم."}</span>
+        </div>
+        {!empty && (
+          <div className="chips">
+            {REFINE_IDEAS.map((t) => <button key={t} className="chip sm" disabled={busy} onClick={() => send(t)}>{t}</button>)}
+          </div>
+        )}
+      </div>
+    </Sheet>,
+    document.body,
   );
 }
 

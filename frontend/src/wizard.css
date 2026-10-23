@@ -23,7 +23,16 @@ main.wz-main > :not(.wz-foot) { animation: wzin .26s var(--ease) both; }
 .wz-field { display: flex; gap: 4px; align-items: center; border-radius: 16px; background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--chip-line); padding: 6px 14px 6px 6px; transition: box-shadow .15s; }
 .wz-field:focus-within { box-shadow: inset 0 0 0 2px var(--blue-2); }
 .wz-field input { flex: 1; min-width: 0; height: 44px; border: 0; background: transparent; outline: none; font-size: 16px; }
-.wz-field input::placeholder { color: var(--faint); }
+.wz-field textarea { flex: 1; min-width: 0; min-height: 44px; max-height: 150px; padding: 9px 2px; border: 0; background: transparent; outline: none;
+  font: inherit; font-size: 16px; line-height: 1.6; color: inherit; resize: none; overflow-y: hidden; scrollbar-width: thin; }
+.wz-field input::placeholder, .wz-field textarea::placeholder { color: var(--faint); }
+.wz-chatbox { align-items: flex-end; border-radius: 22px; padding: 4px 12px 4px 4px; }
+.wz-chatbox .sendbtn { margin-bottom: 3px; }
+.wz-chat { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 8px; }
+.wz-chat-ai { display: flex; gap: 8px; align-items: flex-start; align-self: flex-start; max-width: 92%; padding: 10px 14px; border-radius: 18px 18px 18px 6px;
+  background: linear-gradient(90deg, #f4f0ff, #eef6ff); color: var(--ink-2); font-size: 14px; line-height: 1.85; box-shadow: inset 0 0 0 1px #e2dafc; }
+.wz-chat-ai svg { color: var(--ai); flex: none; margin-top: 5px; }
+.wz-chat .chip { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--chip-line); }
 .wz-field.sm { border-radius: 24px; }
 
 .wz-examples { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-top: 2px; }
