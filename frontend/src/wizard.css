@@ -201,3 +201,51 @@ main.wz-main > :not(.wz-foot) { animation: wzin .26s var(--ease) both; }
 .gen-best .r3 { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
 .gen-best-why { font-size: 13px; color: var(--ink-2); }
 .gen-best-btns { display: flex; gap: 8px; }
+
+/* a shop's ways of being asked, in its own order (ChanLadder), and the assistant on the phone (CallCard) */
+.wz-iq-ch { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.ladder { list-style: none; margin: 0; padding: 4px 0 2px; display: flex; align-items: flex-start; }
+.lad { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; text-align: center; }
+.lad-line { position: absolute; top: 16px; left: calc(50% + 20px); right: calc(-50% + 20px); height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.lad-line i { position: absolute; inset: 0 0 0 auto; width: 0; background: var(--brand); transition: width .6s var(--ease); }
+.lad-line.on i { width: 100%; }
+.lad-ico { position: relative; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--hair); color: var(--faint);
+  box-shadow: inset 0 0 0 1.5px var(--line); transition: background .3s, color .3s, transform .3s; }
+.lad-n { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--ink-2); color: #fff; font-size: 10px; line-height: 16px; font-weight: 800; }
+.lad-t { font-size: 11.5px; font-weight: 700; color: var(--muted); line-height: 1.5; }
+.lad-s { font-size: 10.5px; color: var(--faint); line-height: 1.3; }
+.ladder:not(.live) .lad-ico { color: var(--ink-2); background: var(--surface); }
+.lad.whatsapp { --c: #1faa59; --cs: #e3f7eb; }
+.lad.sms { --c: #2563eb; --cs: #e8f0fe; }
+.lad.call { --c: #7c3aed; --cs: #f1eafe; }
+.ladder:not(.live) .lad-ico, .lad.sent .lad-ico, .lad.calling .lad-ico { color: var(--c); background: var(--cs); box-shadow: inset 0 0 0 1.5px var(--c); }
+.lad.sent .lad-t, .lad.calling .lad-t { color: var(--c); }
+.lad.sent .lad-s, .lad.calling .lad-s { color: var(--c); font-weight: 700; }
+.lad.sent .lad-ico, .lad.calling .lad-ico { transform: scale(1.08); }
+.lad.calling .lad-ico svg { animation: ringshake 1s ease-in-out infinite; }
+.lad.off .lad-ico { color: var(--faint); background: var(--hair); }
+.lad.off .lad-t { color: var(--faint); text-decoration: line-through; }
+.lad.won .lad-ico { color: #fff; background: var(--green); box-shadow: 0 2px 8px rgba(46, 125, 50, .35); animation: pop .4s var(--ease); }
+.lad.won .lad-t, .lad.won .lad-s { color: var(--green); font-weight: 800; }
+.lad-ico .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--c, var(--ai)); opacity: 0; animation: ripple 1.6s ease-out infinite; }
+.lad-ico .ring.r2, .wz-call-ava .ring.r2 { animation-delay: .8s; }
+.lad-ico .fly { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--c); top: 13px; left: 50%; animation: fly 1.4s ease-in infinite; }
+@keyframes ripple { 0% { transform: scale(1); opacity: .7; } 100% { transform: scale(1.9); opacity: 0; } }
+@keyframes ringshake { 0%, 50%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(-16deg); } 20%, 40% { transform: rotate(16deg); } }
+@keyframes fly { 0% { transform: translate(0, 0) scale(1); opacity: 1; } 100% { transform: translate(-30px, -16px) scale(.4); opacity: 0; } }
+@keyframes pop { 0% { transform: scale(.6); } 70% { transform: scale(1.18); } 100% { transform: scale(1.05); } }
+.wz-call { border-radius: 16px; padding: 12px 14px; background: linear-gradient(135deg, #f5f0ff, #eef5ff); box-shadow: inset 0 0 0 1px #e2dafc; display: flex; flex-direction: column; gap: 8px; }
+.wz-call.done { background: var(--green-soft); box-shadow: inset 0 0 0 1px #c9e9b8; }
+.wz-call-head { display: flex; align-items: center; gap: 10px; }
+.wz-call-head b { font-size: 13.5px; color: var(--ai); }
+.wz-call.done .wz-call-head b { color: var(--green); }
+.wz-call-ava { position: relative; width: 38px; height: 38px; border-radius: 50%; background: var(--ai); color: #fff; display: grid; place-items: center; flex: none; --c: var(--ai); }
+.wz-call.done .wz-call-ava { background: var(--green); }
+.wz-call-ava .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--ai); opacity: 0; animation: ripple 1.6s ease-out infinite; }
+.wz-wave { display: flex; align-items: center; gap: 3px; height: 22px; }
+.wz-wave i { width: 3px; height: 6px; border-radius: 2px; background: var(--ai); animation: wave .9s ease-in-out infinite; }
+.wz-wave i:nth-child(2) { animation-delay: .15s; } .wz-wave i:nth-child(3) { animation-delay: .3s; } .wz-wave i:nth-child(4) { animation-delay: .45s; } .wz-wave i:nth-child(5) { animation-delay: .6s; }
+@keyframes wave { 0%, 100% { height: 5px; } 50% { height: 20px; } }
+.wz-call-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.wz-call-lines li { align-self: flex-start; max-width: 94%; padding: 6px 11px; border-radius: 14px 14px 14px 4px; background: var(--surface); font-size: 12.5px; line-height: 1.8; color: var(--ink-2); box-shadow: 0 1px 2px rgba(15, 23, 42, .06); }
+@media (prefers-reduced-motion: reduce) { .lad-ico .ring, .lad-ico .fly, .lad.calling .lad-ico svg, .wz-call-ava .ring, .wz-wave i { animation: none; } }

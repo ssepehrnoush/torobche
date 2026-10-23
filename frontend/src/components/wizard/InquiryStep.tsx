@@ -16,26 +16,90 @@ const OUTCOME: Record<Reply["outcome"], { label: string; tone: string }> = {
   no_answer: { label: "جواب نداد", tone: "gray" },
   closed: { label: "بسته بود", tone: "gray" },
 };
-const SCENARIOS: [string, string][] = [["", "خودکار"], ["live", "زنده"], ["confirmed", "موجود"], ["price_changed", "تغییر قیمت"], ["out_of_stock", "ناموجود"], ["no_answer", "بی‌پاسخ"]];
-const VIA: Record<string, string> = { whatsapp: "واتساپ", sms: "پیامک", call: "تماس خودکار" };
+const SCENARIOS: [string, string][] = [["", "خودکار"], ["live", "زنده"], ["confirmed", "موجود"], ["price_changed", "تغییر قیمت"], ["out_of_stock", "ناموجود"], ["no_answer", "بی‌پاسخ"], ["on_call", "با تماس"]];
+const VIA: Record<string, string> = { whatsapp: "واتساپ", sms: "پیامک", call: "تماس هوش مصنوعی" };
 const CHAN_ICON: Record<string, string> = { whatsapp: "chat", sms: "chat", bale: "send", call: "phone" };
 type Chan = { channel: string; label: string; state: "sent" | "calling" | "no_answer"; real?: boolean };
+
+/** What the automated call asks one shop: the shared script, with this shop's own registered price. */
+function callLines(script: string[] | undefined, title: string | undefined, price: number | null | undefined): string[] {
+  const base = script?.length ? script : ["سلام، وقت بخیر. از طریق ترب با فروشگاه شما آشنا شدم."];
+  const out = [base[0], title ? `«${title}» را موجود دارید؟` : base[1]];
+  out.push(price ? `قیمت ثبت‌شده ${toman(price)} است؛ قیمت امروز چقدر است؟` : "قیمت امروزش چقدر است؟");
+  if (base[3]) out.push(base[3]);
+  return out.filter(Boolean);
+}
 
 /* A tester can play the first shop on their own phone; the number is remembered on this device only. */
 const TESTER_KEY = "torobche.testerPhone";
 const digits = (s: string) => s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).replace(/\D/g, "");
 const isMobile = (s: string) => /^(0098|98|0)?9\d{9}$/.test(digits(s));
 
-/** One system line in a shop's thread: a channel tried, ringing, or left unanswered. */
-function ChanLine({ c, live }: { c: Chan; live: boolean }) {
-  const label = c.real ? `${c.label} واقعی` : c.label;
-  const text = c.state === "no_answer" ? `${c.label} جواب نداد`
-    : c.state === "calling" ? (live ? `${label}، در حال زنگ زدن…` : `${label}، وصل شد`) : `${label} رفت`;
+const STEP_NAME: Record<string, string> = { whatsapp: "واتساپ", sms: "پیامک", call: "تماس هوش مصنوعی", bale: "بله" };
+type StepState = "wait" | "sent" | "calling" | "off" | "won";
+
+/** A shop's ways of being asked, in the order the shop itself chose, as one row of steps: the one being tried
+    lights up (a message leaving, or a phone ringing), an unanswered one dims and the line to the next fills,
+    and the one the answer came on turns green. Before sending it is the same row, numbered. */
+function ChanLadder({ ways, log, reply, started }: {
+  ways: { k: string; label: string }[]; log: Chan[]; reply?: Reply; started: boolean;
+}) {
+  const last: Record<string, Chan> = {};
+  for (const c of log) last[c.channel] = c;
+  const state = (k: string): StepState => {
+    if (reply?.via === k) return "won";
+    const c = last[k];
+    if (!c) return "wait";
+    if (c.state === "no_answer" || reply) return "off";
+    return c.state === "calling" ? "calling" : "sent";
+  };
+  const note: Record<StepState, string> = { wait: "", sent: "رفت، منتظر جواب", calling: "داره زنگ می‌زنه", off: "جواب نداد", won: "جواب داد" };
   return (
-    <div className={"wz-sys" + (c.state === "no_answer" ? " off" : "") + (live && c.state === "calling" ? " ringing" : "")}>
-      <Icon name={CHAN_ICON[c.channel] ?? "chat"} size={13} />
-      <span>{text}</span>
-      {c.state === "sent" && <Icon name="check" size={13} stroke={2.4} className="wz-tick" />}
+    <ol className={"ladder" + (started ? " live" : "")} aria-label="راه‌های پرسیدن از این فروشگاه، به ترتیب خودش">
+      {ways.map((w, i) => {
+        const st = started ? state(w.k) : "wait";
+        const real = last[w.k]?.real;
+        return (
+          <li key={w.k} className={`lad ${w.k} ${st}`}>
+            {i > 0 && <span className={"lad-line" + (st !== "wait" ? " on" : "")} aria-hidden="true"><i /></span>}
+            <span className="lad-ico">
+              <Icon name={st === "won" ? "check" : CHAN_ICON[w.k] ?? "chat"} size={16} stroke={st === "won" ? 2.6 : 1.8} />
+              {!started && <b className="lad-n">{fa(i + 1)}</b>}
+              {st === "calling" && <><em className="ring r1" /><em className="ring r2" /></>}
+              {st === "sent" && <em className="fly" />}
+            </span>
+            <span className="lad-t">{STEP_NAME[w.k] ?? w.label}{real ? " (واقعی)" : ""}</span>
+            {started && note[st] && <span className="lad-s">{note[st]}</span>}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/** While the assistant is on the phone with a shop: who it is calling, a live voice wave and timer, and what it
+    asks, line by line, the way the automated call says it. */
+function CallCard({ shop, lines, done }: { shop: string; lines: string[]; done: boolean }) {
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    if (done) return;
+    const id = setInterval(() => setT((x) => x + 1), 1000);
+    return () => clearInterval(id);
+  }, [done]);
+  const shown = done ? lines.length : Math.min(lines.length, 1 + Math.floor(t / 1.6));
+  return (
+    <div className={"wz-call fadein" + (done ? " done" : "")} role="status">
+      <div className="wz-call-head">
+        <span className="wz-call-ava"><Icon name="spark" size={18} />{!done && <><em className="ring r1" /><em className="ring r2" /></>}</span>
+        <span className="grow stack" style={{ gap: 0 }}>
+          <b>{done ? "تماس تمام شد" : "هوش مصنوعی داره زنگ می‌زنه"}</b>
+          <span className="meta">به «{shop}» · {fa(Math.floor(t / 60))}:{fa(String(t % 60).padStart(2, "0"))}</span>
+        </span>
+        {!done && <span className="wz-wave" aria-hidden="true">{[0, 1, 2, 3, 4].map((i) => <i key={i} />)}</span>}
+      </div>
+      <ul className="wz-call-lines">
+        {lines.slice(0, shown).map((l, i) => <li key={i} className="fadein">{l}</li>)}
+      </ul>
     </div>
   );
 }
@@ -177,14 +241,22 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
 
               {!st.started ? (
                 s.channels?.length ? (
-                  <div className="wz-iq-ch"><Icon name="chat" size={13} />
-                    <span className="grow">راه تماس به خواست خودش: {s.channels.map((x) => x.label).join("، بعد ")}</span>
+                  <div className="wz-iq-ch">
+                    <span className="meta">به ترتیبی که خود فروشگاه خواسته:</span>
+                    <ChanLadder ways={s.channels} log={[]} started={false} />
                   </div>
                 ) : null
               ) : (
                 <div className="wz-thread">
-                  {(log[s.sid] ?? []).map((c, i) => <ChanLine key={i} c={c} live={!r} />)}
-                  {!r && <span className="typing sm"><i /><i /><i /></span>}
+                  {s.channels?.length ? <ChanLadder ways={s.channels} log={log[s.sid] ?? []} reply={r} started /> : null}
+                  {(() => {
+                    const c = (log[s.sid] ?? []).find((x) => x.channel === "call" && x.state === "calling");
+                    const off = (log[s.sid] ?? []).some((x) => x.channel === "call" && x.state === "no_answer");
+                    const won = r?.via === "call";
+                    if (!won && !(c && !off && !r)) return null; // only while ringing, or when the call got the answer
+                    return <CallCard shop={s.name} done={won} lines={callLines(st.callScript, st.product?.title, s.price)} />;
+                  })()}
+                  {!r && !(log[s.sid] ?? []).some((x) => x.state === "calling") && <span className="typing sm"><i /><i /><i /></span>}
                   {r && (r.text || r.note) && (
                     <div className={"wz-in" + (r.in_stock === false || !r.text ? " off" : "")}>
                       <span>{r.text ?? r.note}</span>

@@ -128,7 +128,7 @@ function GenProducts({ s, busy, onBack, onPick, onAnswer, onRestart }: {
       <StepHead title={s.title} />
       <div className="wz-opts" role="radiogroup">
         {items.map((p) => (
-          <button key={p.pid} className={"wz-prod" + (sel === p.pid ? " on" : "")} role="radio" aria-checked={sel === p.pid} onClick={() => setSel(p.pid)}>
+          <button key={p.pid} data-pid={p.pid} className={"wz-prod" + (sel === p.pid ? " on" : "")} role="radio" aria-checked={sel === p.pid} onClick={() => setSel(p.pid)}>
             <Img src={p.image} className="pimg sm" />
             <span className="grow wz-opt-txt">
               <span className="wz-opt-t clamp2">{p.title}</span>

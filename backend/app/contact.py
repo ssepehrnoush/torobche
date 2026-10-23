@@ -362,7 +362,9 @@ async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bo
     page = _pages[tok]
     answered = plan["outcome"] not in ("no_answer", "closed")
     answer_on = 0
-    if answered and len(channels) > 1 and random.Random(tok).random() < 0.35:
+    if plan.get("answer_last"):
+        answer_on = len(channels) - 1  # demo «با تماس»: nothing is read, the last way (the call) gets the answer
+    elif answered and len(channels) > 1 and random.Random(tok).random() < 0.35:
         answer_on = 1  # the first channel goes unread, the next one gets the answer
     for i, ch in enumerate(channels):
         ev = {"type": "channel", "sid": item["sid"], "channel": ch, "label": CHANNELS[ch],
@@ -402,6 +404,8 @@ async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bo
     if live:  # nobody tapped in time
         plan = {**plan, "outcome": "no_answer", "in_stock": None, "confirmed_price": None, **NO_HOLD,
                 "text": None, "note": "در مهلتِ دمو کسی از صفحهٔ جواب پاسخ نداد."}
+    if plan["outcome"] == "no_answer" and "call" not in channels and not live:
+        plan = {**plan, "note": "پیام‌ها خوانده نشد."}  # this shop takes no calls, so no phone went unanswered
     page["answer"] = page["answer"] or {"outcome": "no_answer", "price": None, "real": False, "expired": True}
     await queue.put({"type": "reply", **plan})
 
@@ -454,7 +458,9 @@ async def run_inquiry(pid: int, sids: list[int], ctx: Ctx, forced: dict[int, str
     for sh, t in zip(start["shops"], targets):
         s = shops.shop(t["sid"])
         f = (forced or {}).get(t["sid"])
-        plan = simulate_reply(t, s, pid, None if f == "live" else f, contact_auth(t, ctx))
+        plan = simulate_reply(t, s, pid, None if f == "live" else "confirmed" if f == "on_call" else f, contact_auth(t, ctx))
+        if f == "on_call":
+            plan = {**plan, "answer_last": True, "delay_s": 6.5}  # long enough to see the call
         tasks.append(asyncio.create_task(
             _reach(t, [c["k"] for c in sh["channels"]], plan, sh["reply_token"], f == "live", queue, phones.get(t["sid"]))))
     try:
