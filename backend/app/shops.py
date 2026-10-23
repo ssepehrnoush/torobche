@@ -473,6 +473,65 @@ def mall_guide(s: Shop) -> dict | None:
     }
 
 
+_BUILDING_MAX = 32  # dots per floor in the drawing; shops past it are thinned, never this shop or one with the product
+
+
+def mall_building(s: Shop, prices: dict[int, int | None]) -> dict | None:
+    """The mall as a stack of floors for a simple drawing: every shop of the dataset in it on its floor, in the order
+    of their unit numbers (the order is real, the spacing is not), this shop and the ones with the same product
+    (`prices`, sid -> price) marked. None when the floor is unknown or the mall has too few shops to draw."""
+    if s.floor_num is None or not s.mall_name:
+        return None
+    mates = [o for o in same_mall_shops(s) if o.floor_num is not None and -4 <= o.floor_num <= 12]
+    if len(mates) < 3:
+        return None
+    by_floor: dict[int, list[Shop]] = {0: []}  # the ground floor is always drawn: the entrance is there
+    for o in mates:
+        by_floor.setdefault(o.floor_num, []).append(o)
+    for f in range(min(by_floor), max(by_floor)):  # a floor with no shop in the data is still a floor of the building
+        by_floor.setdefault(f, [])
+    floors = []
+    for f in sorted(by_floor, reverse=True):
+        row = sorted(by_floor[f], key=lambda o: (_unit_int(o.unit) is None, _unit_int(o.unit) or 0, o.sid))
+        marked = sum(1 for o in row if o.sid == s.sid or o.sid in prices)
+        step = max(1, -(-(len(row) - marked) // max(1, _BUILDING_MAX - marked)))
+        kept, k = [], 0
+        for o in row:
+            if o.sid == s.sid or o.sid in prices:
+                kept.append(o)
+            else:
+                if k % step == 0:
+                    kept.append(o)
+                k += 1
+        floors.append({"num": f, "count": len(row), "shops": [
+            {"sid": o.sid, "unit": o.unit and fa_digits(o.unit), "name": o.name,
+             "kind": "target" if o.sid == s.sid else "offer" if o.sid in prices else "other",
+             "price": prices.get(o.sid)} for o in kept]})
+    return {"mall_name": s.mall_name, "target_floor": s.floor_num, "unit": s.unit and fa_digits(s.unit),
+            "offers": sum(1 for p in prices if p != s.sid), "floors": floors}
+
+
+def arrive_line(s: Shop, guide: dict | None, ctx: Ctx) -> dict | None:
+    """One friendly sentence for someone standing at the mall's door: which floor, which unit, next to which shop.
+    `near` is true when the person's spot is already at the mall, so the app can show it first."""
+    if not guide or not s.mall_name or (s.floor_num is None and not s.unit):
+        return None
+    f = s.floor_num
+    if f is None:
+        go = "از ورودی"
+    elif f == 0:
+        go = "همین طبقهٔ همکف بمون و"
+    elif f < 0:
+        go = f"از ورودی برو طبقهٔ منفی {fa_digits(-f)} و"
+    else:
+        go = f"از ورودی برو طبقهٔ {fa_digits(f)}" + (" (با آسانسور یا پله‌برقی)" if f >= 3 else "") + " و"
+    unit = f" دنبال واحد {fa_digits(s.unit)} بگرد" if s.unit else " از اطلاعات پاساژ بپرس"
+    lm = guide["landmarks"][0] if guide.get("landmarks") else None
+    near_to = f"، نزدیک «{lm['name']}» (واحد {lm['unit']})" if lm else ""
+    return {"near": haversine_km(ctx.lat, ctx.lon, s.lat, s.lon) <= 0.2,
+            "title": f"دم {s.mall_name}", "text": f"{go}{unit}{near_to}."}
+
+
 def shop_detail(sid: int, ctx: Ctx, pid: int | None = None) -> dict | None:
     s = shop(sid)
     if not s:
@@ -495,11 +554,16 @@ def shop_detail(sid: int, ctx: Ctx, pid: int | None = None) -> dict | None:
                 m = all_shops()[o["sid"]]
                 mall_alts.append({"sid": m.sid, "name": m.name, "mall": mall_line(m),
                                   "price": o["price_toman"] if o["price_ok"] else None})
+    guide = mall_guide(s)
+    prices = {a["sid"]: a["price"] for a in mall_alts}
+    if offer:
+        prices[sid] = offer["price"]
     return {
         **brief,
         "week": week_table(s.shifts, s.has_hours, s.day_status),
         "categories": cats, "n_products": s.n_products, "providers": s.providers,
-        "mall_guide": mall_guide(s), "offer": offer, "same_mall_offers": mall_alts,
+        "mall_guide": guide, "offer": offer, "same_mall_offers": mall_alts,
+        "mall_building": mall_building(s, prices) if guide else None, "arrive": arrive_line(s, guide, ctx),
         "phone_note": "شماره‌های تلفن در داده هکاتون ساختگی هستند",
         "nav": nav_links(s.lat, s.lon, s.name, (ctx.lat, ctx.lon), ctx.travel_mode),
     }

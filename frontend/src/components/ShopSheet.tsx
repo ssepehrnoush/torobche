@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { fa, jalali, toman } from "../fmt";
 import { Icon } from "../icons";
-import type { Authenticity, Ctx, MallGuide, ShopDetail } from "../types";
+import type { Authenticity, Ctx, MallBuilding as Building, MallGuide, ShopDetail } from "../types";
 import { Fold, MetroStrip, OpenText } from "./bits";
+import { MallBuilding } from "./MallBuilding";
+import { MASCOT_SVG } from "./mascot";
 import { useNavPick } from "./NavPick";
 import { Sheet } from "./Sheet";
 import { freshTone } from "./ShopsView";
@@ -89,7 +91,7 @@ export function ShopSheet({ sid, pid, ctx, auth, onClose, onInquiry, onVisit, on
           <div className="folds">
             {d.mall_guide && (
               <Fold title="مسیر داخل پاساژ" summary={[d.mall_guide.floor, d.mall_guide.unit ? `واحد ${d.mall_guide.unit}` : ""].filter(Boolean).join("، ")} open={!!open.guide} onToggle={() => flip("guide")}>
-                <Guide g={d.mall_guide} onOpenShop={onOpenShop} />
+                <Guide g={d.mall_guide} b={d.mall_building} arrive={d.arrive} onOpenShop={onOpenShop} />
               </Fold>
             )}
             <Fold title="ساعت کاری ثبت‌شده" summary={today ? `امروز ${today.text}` : undefined} open={!!open.hours} onToggle={() => flip("hours")}>
@@ -139,9 +141,23 @@ export function ShopSheet({ sid, pid, ctx, auth, onClose, onInquiry, onVisit, on
   );
 }
 
-function Guide({ g, onOpenShop }: { g: MallGuide; onOpenShop: (sid: number) => void }) {
+/** Inside the mall: for someone at its door one plain sentence (shown by itself when their spot is already there),
+    the floors drawn as a building, then the steps. */
+function Guide({ g, b, arrive, onOpenShop }: {
+  g: MallGuide; b: Building | null; arrive: ShopDetail["arrive"]; onOpenShop: (sid: number) => void;
+}) {
+  const [here, setHere] = useState(!!arrive?.near);
   return (
     <div className="stack" style={{ gap: 12 }}>
+      {arrive && (here ? (
+        <div className="atdoor fadein">
+          <span className="atdoor-ic" dangerouslySetInnerHTML={{ __html: MASCOT_SVG }} />
+          <span className="stack" style={{ gap: 2 }}><b>{arrive.title}</b><span>{arrive.text}</span></span>
+        </div>
+      ) : (
+        <button className="textbtn atdoor-btn" onClick={() => setHere(true)}><Icon name="pin" size={16} /> الان دم پاساژم، کجا برم؟</button>
+      ))}
+      {b && <MallBuilding b={b} onOpenShop={onOpenShop} />}
       <div className="guidewrap">
         <ol className="guide grow">
           {g.steps.map((s, i) => (
@@ -151,7 +167,7 @@ function Guide({ g, onOpenShop }: { g: MallGuide; onOpenShop: (sid: number) => v
             </li>
           ))}
         </ol>
-        {g.floors.length > 1 && (
+        {!b && g.floors.length > 1 && (
           <div className="floors" aria-label="طبقات پاساژ">
             <span className="meta center">{g.mall_name ?? "پاساژ"}</span>
             {[...g.floors].sort((a, b) => b.num - a.num).map((f) => (

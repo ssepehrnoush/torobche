@@ -466,6 +466,37 @@ main { flex: 1; padding: 12px 12px 128px; display: flex; flex-direction: column;
 .floors { display: flex; flex-direction: column; gap: 3px; width: 96px; flex: none; }
 .floor { display: flex; justify-content: space-between; gap: 6px; font-size: 11.5px; padding: 3px 8px; border-radius: 6px; background: var(--hair); color: var(--muted); font-weight: 600; }
 .floor.target { background: var(--brand-grad); color: #fff; font-weight: 800; }
+/* the mall drawn as floors (MallBuilding) and the one-sentence way for someone at its door */
+.mallbld { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.mallbld svg { width: 100%; height: auto; direction: ltr; overflow: visible; }
+.mb-bar { fill: var(--hair); stroke: var(--line); stroke-width: 1; }
+.mb-bar.on { fill: var(--brand-soft); stroke: #f6b9c0; }
+.mb-label { font: 700 11px var(--font); fill: var(--muted); }
+.mb-label.on { fill: var(--brand-ink); font-weight: 900; }
+.mb-dot { fill: #b8c2cf; }
+.mb-shop { cursor: pointer; }
+.mb-offer { fill: var(--green); stroke: #fff; stroke-width: 1.5; }
+.mb-pin { fill: var(--brand); stroke: #fff; stroke-width: 2; filter: drop-shadow(0 1px 2px rgba(233, 30, 51, .45)); }
+.mb-tag { fill: var(--surface); stroke: var(--chip-line); stroke-width: 1; }
+.mb-shop.target .mb-tag { fill: var(--brand); stroke: none; }
+.mb-tagtxt { font: 800 8.5px var(--font); fill: var(--green); }
+.mb-shop.target .mb-tagtxt { fill: #fff; }
+.mb-way { fill: none; stroke: var(--brand); stroke-width: 2.2; stroke-dasharray: 1 5; stroke-linecap: round; }
+.mb-hop { animation: mbhop .9s cubic-bezier(.33, 0, .67, 1) infinite; }
+@keyframes mbhop { 0%, 100% { transform: scale(1.2) translateY(0); } 50% { transform: scale(1.2) translateY(-3px); } }
+.mb-key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--muted); }
+.mb-key span { display: inline-flex; align-items: center; gap: 5px; }
+.mb-key i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.k-pin { background: var(--brand); }
+.k-offer { background: var(--green); }
+.k-dot { background: #b8c2cf; }
+.atdoor { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 14px; background: var(--brand-soft); box-shadow: inset 0 0 0 1px #f6b9c0; }
+.atdoor b { font-size: 14px; color: var(--brand-ink); }
+.atdoor span span { font-size: 14px; line-height: 1.9; }
+.atdoor-ic { flex: none; }
+.atdoor-ic svg { display: block; animation: hop .9s cubic-bezier(.33, 0, .67, 1) infinite; }
+.atdoor-btn { align-self: flex-start; }
+@media (prefers-reduced-motion: reduce) { .mb-hop, .atdoor-ic svg { animation: none; } }
 .metrostrip { display: flex; flex-direction: column; gap: 0; background: var(--fog); border-radius: 12px; padding: 8px 10px; }
 .leg { display: flex; align-items: center; gap: 10px; position: relative; padding: 4px 0; }
 .leg:not(:last-child)::after { content: ""; position: absolute; right: 13px; top: 30px; bottom: -4px; width: 2px; background: var(--line); }

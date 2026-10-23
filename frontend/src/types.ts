@@ -137,12 +137,22 @@ export type MallGuide = {
   source: string;
 };
 
+export type MallBuilding = {
+  mall_name: string;
+  target_floor: number;
+  unit: string | null;
+  offers: number; // other shops of this mall with the same product
+  floors: { num: number; count: number; shops: { sid: number; unit: string | null; name: string; kind: "target" | "offer" | "other"; price: number | null }[] }[];
+};
+
 export type ShopDetail = ShopBrief & {
   week: { dow: number; day: string; text: string; today: boolean }[];
   categories: string[];
   n_products: number;
   providers: string[];
   mall_guide: MallGuide | null;
+  mall_building: MallBuilding | null;
+  arrive: { near: boolean; title: string; text: string } | null;
   offer: { price: number | null; freshness: Freshness; seller_title: string; warranty: string | null; description: string | null } | null;
   same_mall_offers: { sid: number; name: string; mall: string | null; price: number | null }[];
   phone_note: string;

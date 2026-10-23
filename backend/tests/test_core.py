@@ -199,3 +199,18 @@ def test_copy_label_skips_photocopiers_and_batteries():
     assert product_hint("دستگاه کپی کانن مدل IR2206", "دستگاه کپی", "کانن", 90_000_000) is None
     assert product_hint("باتری قلمی AAA پاناسونیک", "باتری", "پاناسونیک", 100_000) is None
     assert product_hint("ایرپاد پرو طرح پرچم آمریکا های کپی", "هدفون، هدست و هندزفری", None, 1_000_000)
+
+
+@needs_db
+def test_mall_building_draws_every_floor_and_the_way_in():
+    s = next(o for o in shops.all_shops().values() if o.mall_name == "پاساژ علاالدین" and o.floor_num == 6 and o.unit)
+    d = shops.shop_detail(s.sid, Ctx(lat=s.lat, lon=s.lon), None)
+    b = d["mall_building"]
+    nums = [f["num"] for f in b["floors"]]
+    assert nums == list(range(max(nums), min(nums) - 1, -1)) and 0 in nums  # top down, no floor skipped, entrance drawn
+    assert sum(x["kind"] == "target" for f in b["floors"] for x in f["shops"]) == 1
+    assert all(len(f["shops"]) <= shops._BUILDING_MAX for f in b["floors"])
+    # standing at the mall: the one sentence says the floor and the unit
+    assert d["arrive"]["near"] and "طبقهٔ ۶" in d["arrive"]["text"] and "—" not in d["arrive"]["text"]
+    far = shops.shop_detail(s.sid, Ctx(lat=35.80, lon=51.45), None)
+    assert far["arrive"] and not far["arrive"]["near"]

@@ -34,7 +34,10 @@ function pixels(): string {
   return out.join("");
 }
 
-export const MASCOT_SVG = `<svg viewBox="0 0 14 13" width="34" height="32" shape-rendering="crispEdges" aria-hidden="true">${pixels()}</svg>`;
+/** The radish's pixels alone (14 x 13 units), to place inside another drawing. */
+export const MASCOT_RECTS = pixels();
+
+export const MASCOT_SVG = `<svg viewBox="0 0 14 13" width="34" height="32" shape-rendering="crispEdges" aria-hidden="true">${MASCOT_RECTS}</svg>`;
 
 /** The marker's HTML: the hopping radish over its own shadow, with an optional label above its head. */
 export const mascotHtml = (label?: string) =>
