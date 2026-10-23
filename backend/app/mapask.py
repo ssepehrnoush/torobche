@@ -15,8 +15,12 @@ SYSTEM = (
     "authentic (true: only originals, no copies), in_mall (true: only shops inside a mall or passage), "
     "max_price and min_price (toman, integers; «۴ میلیون» is 4000000, «۹۰۰ تومن» in a phone context means 900000), "
     "max_minutes (integer: how far, in minutes of travel), sort (\"price\" for cheapest first, \"minutes\" for nearest first, "
-    "\"fresh\" for the most recently updated price), limit (integer: how many). Answer with JSON only."
+    "\"fresh\" for the most recently updated price), limit (integer: how many). Set a key only when the request asks for it "
+    "and leave every other key out. Answer with JSON only: {\"filter\": {...}, \"why\": {key: the exact words of the request "
+    "that ask for it}}. Example: «ارزون‌ترین دو تا که قسطی باشه» gives {\"filter\": {\"installment\": true, \"sort\": \"price\", "
+    "\"limit\": 2}, \"why\": {\"installment\": \"قسطی\", \"sort\": \"ارزون‌ترین\", \"limit\": \"دو تا\"}}."
 )
+KEYS = ("open", "installment", "authentic", "in_mall", "max_price", "min_price", "max_minutes", "sort", "limit")
 _FA = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩٫٬", "01234567890123456789.,")
 _WORD_N = {"یک": 1, "یه": 1, "دو": 2, "سه": 3, "چهار": 4, "پنج": 5, "شش": 6, "هفت": 7, "هشت": 8, "ده": 10}
 
@@ -55,18 +59,42 @@ def _rules(text: str) -> dict:
     return f
 
 
+def _bare(s: object) -> str:
+    return re.sub(r"[\s‌‎‏]+", "", str(s)).replace("ي", "ی").replace("ك", "ک")
+
+
+def _value(k: str, v: object):
+    """A filter value of the right kind, or None."""
+    if k in ("open", "installment", "authentic", "in_mall"):
+        return True if v is True else None
+    if k == "sort":
+        return v if v in ("price", "minutes", "fresh") else None
+    try:
+        n = int(float(str(v).translate(_FA)))
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None
+
+
 async def read(text: str) -> dict:
-    """The filter a sentence asks for: the model's reading when it answers in time, the rules otherwise."""
+    """The filter a sentence asks for: the rules, and on top what the model read when it answers in time. A key of the
+    model counts only with the words of the request that ask for it (a model that fills every key pins nothing)."""
     rules = _rules(text)
     if not llm.available():
         return rules
     try:
-        got = await asyncio.wait_for(llm.complete_json(SYSTEM, text, max_tokens=200), timeout=6)
+        got = await asyncio.wait_for(llm.complete_json(SYSTEM, text, max_tokens=250), timeout=6)
     except Exception:
         return rules
-    keys = ("open", "installment", "authentic", "in_mall", "max_price", "min_price", "max_minutes", "sort", "limit")
-    f = {k: got.get(k) for k in keys if got.get(k) not in (None, False, "", 0)}
-    return f or rules
+    f, why = got.get("filter"), got.get("why")
+    if not isinstance(f, dict) or not isinstance(why, dict):
+        return rules
+    said, out = _bare(text), dict(rules)
+    for k in KEYS:
+        v, w = _value(k, f.get(k)), _bare(why.get(k) or "")
+        if v is not None and len(w) >= 2 and w in said:
+            out[k] = v
+    return out
 
 
 def apply(f: dict, shops: list[dict]) -> list[dict]:
