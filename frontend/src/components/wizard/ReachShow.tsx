@@ -11,7 +11,7 @@ import { Icon } from "../../icons";
 type Way = "call" | "whatsapp" | "sms";
 const NAME: Record<Way, string> = { call: "تماس هوش مصنوعی", whatsapp: "واتساپ", sms: "پیامک" };
 const ICON: Record<Way, string> = { call: "phone", whatsapp: "chat", sms: "send" };
-const LEN: Record<Way | "intro", number> = { intro: 5.2, call: 21, whatsapp: 7, sms: 7 };
+const LEN: Record<Way | "intro", number> = { intro: 6.8, call: 21, whatsapp: 7, sms: 7 };
 const RING = 1.4; // the phone rings this long before the shopkeeper picks up
 const AI_SECS = 16.0; // the call's own recording, /reach/call-ai.mp3
 const SELLER_AT = RING + AI_SECS + 0.35;

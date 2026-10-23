@@ -130,6 +130,15 @@ async function say(alt = null) {
   voiceEnd = start + v.dur * 1000;
   log("SAY", lid, v.text.slice(0, 40));
 }
+/** A recording that is not narration (the call in the demo) placed at this moment; the next line waits for it. */
+function clip(id) {
+  const v = voice[id];
+  if (!v) throw new Error(`no clip ${id}`);
+  const start = tick();
+  rec.cues.push({ id, scene: scene.id, start: Math.round(start), dur: v.dur, file: v.file, text: v.text });
+  voiceEnd = start + v.dur * 1000;
+  log("CLIP", id);
+}
 function sayNow(alt = null) {
   const lid = alt || `${scene.id}-${scene.lineIx}`;
   scene.lineIx++;
@@ -422,21 +431,16 @@ await hold(2.0);
 await smoothScroll(200, 1.4);
 await untilSpoken(0.2);
 await tapEl(NEXT, { scroll: false });
-if (callIx) {
-  // the assistant goes down the shop's own list: WhatsApp, the text, then it phones; shown before the shopkeeper's phone
-  await waitFor("document.querySelector('.sheet')", 8000, false);
-  await hold(0.9);
-  await tapEl(`document.querySelector('.sheet .iconbtn[aria-label="بستن"]') || document.querySelector('.backdrop')`, { scroll: false });
-  await hold(0.3);
-  await js(`document.querySelectorAll('.wz-iq')[${callIx}]?.scrollIntoView({ block: 'center', behavior: 'smooth' }); true`);
-  await hold(0.5);
-  await say();
-  await waitFor(`document.querySelectorAll('.wz-iq')[${callIx}]?.querySelector('.wz-call')`, 20000, false);
-  await js(`document.querySelectorAll('.wz-iq')[${callIx}]?.querySelector('.wz-call')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); true`);
-  await waitFor(`document.querySelectorAll('.wz-iq')[${callIx}]?.querySelector('.lad.call.won')`, 25000, false);
-  await hold(1.6);
-  await untilSpoken(0.3);
-}
+// the three ways a shop hears about it, one short scene each: the AI's call (its own recording), WhatsApp, the text
+await waitFor("document.querySelector('.reach')", 10000, false);
+await hold(0.4);
+await say();
+await waitFor("document.querySelector('.reach')?.dataset.phase === 'talk'", 20000, false);
+clip("call-ai");
+await waitFor("document.querySelector('.reach')?.dataset.phase === 'answer'", 30000, false);
+clip("call-seller");
+await waitFor("!document.querySelector('.reach')", 40000, false);
+await hold(0.6);
 await endScene(0);
 
 // 7) the shopkeeper's phone: the one-tap answer page of the first shop, tapped like the shopkeeper would
