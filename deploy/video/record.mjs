@@ -420,6 +420,11 @@ await say();
 await hold(2.0);
 await smoothScroll(200, 1.4);
 await untilSpoken(0.2);
+// the call can be tried for real: with «خودت جای مغازه‌دار جواب بده» and one's own number, Kavenegar really rings
+await js("document.querySelector('.wz-tester')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); true");
+await hold(0.6);
+await say();
+await untilSpoken(0.3);
 await tapEl(NEXT, { scroll: false });
 // the three ways a shop hears about it, one short scene each: the AI's call (its own recording), WhatsApp, the text
 await waitFor("document.querySelector('.reach')", 10000, false);
