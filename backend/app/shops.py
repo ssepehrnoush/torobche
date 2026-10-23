@@ -508,7 +508,7 @@ def mall_building(s: Shop, prices: dict[int, int | None]) -> dict | None:
              "kind": "target" if o.sid == s.sid else "offer" if o.sid in prices else "other",
              "price": prices.get(o.sid)} for o in kept]})
     return {"mall_name": s.mall_name, "target_floor": s.floor_num, "unit": s.unit and fa_digits(s.unit),
-            "offers": sum(1 for p in prices if p != s.sid), "floors": floors}
+            "offers": sum(1 for f in floors for x in f["shops"] if x["kind"] == "offer"), "floors": floors}
 
 
 def arrive_line(s: Shop, guide: dict | None, ctx: Ctx) -> dict | None:
@@ -526,7 +526,7 @@ def arrive_line(s: Shop, guide: dict | None, ctx: Ctx) -> dict | None:
     else:
         go = f"از ورودی برو طبقهٔ {fa_digits(f)}" + (" (با آسانسور یا پله‌برقی)" if f >= 3 else "") + " و"
     unit = f" دنبال واحد {fa_digits(s.unit)} بگرد" if s.unit else " از اطلاعات پاساژ بپرس"
-    lm = guide["landmarks"][0] if guide.get("landmarks") else None
+    lm = next((l for l in guide.get("landmarks") or [] if l["unit"] != fa_digits(s.unit or "")), None)  # not one with the same number
     near_to = f"، نزدیک «{lm['name']}» (واحد {lm['unit']})" if lm else ""
     return {"near": haversine_km(ctx.lat, ctx.lon, s.lat, s.lon) <= 0.2,
             "title": f"دم {s.mall_name}", "text": f"{go}{unit}{near_to}."}
