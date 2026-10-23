@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Stre
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import agent, catalog, config, contact, db, gazetteer, genui, llm, shops, stroll, visit
+from . import agent, catalog, config, contact, db, gazetteer, genui, llm, mapask, shops, stroll, visit
 from . import streets, travel
 from .agent import fmt_shops, toman
 from .models import Ctx
@@ -269,6 +269,17 @@ class ShopIn(BaseModel):
     sid: int
     pid: int | None = None
     ctx: Ctx = Ctx()
+
+
+class MapAskIn(BaseModel):
+    text: str = Field(min_length=1, max_length=200)
+    shops: list[dict] = Field(default_factory=list, max_length=60)  # [{sid, name, price, minutes, open, installment, copy, mall, days}]
+
+
+@app.post("/api/map/ask")
+async def map_ask(body: MapAskIn):
+    """Which shops to show on the map, from one sentence (see mapask)."""
+    return await mapask.ask(body.text, body.shops)
 
 
 @app.post("/api/way")

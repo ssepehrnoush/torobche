@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { api } from "../../api";
-import { fa, short, shortPlace, toman } from "../../fmt";
+import { fa, num, short, shortPlace, toman } from "../../fmt";
 import { Icon } from "../../icons";
+import { RadishLogo } from "../Logo";
 import type { Authenticity, Ctx, GenShops, MapPath, ShopOffer, ShopsResult, TravelMode } from "../../types";
 import { activeFilters } from "../ContextBar";
 import { AuthBadge, OpenText, PriceAge, TravelInline } from "../bits";
@@ -96,7 +97,8 @@ export function ShopsStep({ pid, ctx, setCtx, picks, need, onBack, onAsk, onGo, 
 
       {onFilters && onPlace && <CondBar ctx={ctx} setCtx={setCtx} onFilters={onFilters} onPlace={onPlace} />}
 
-      {data && near.length > 0 && <ShopMap near={near} ctx={ctx} sel={sel} cheapest={cheapest} onToggle={toggle} />}
+      {data && near.length > 0 && <ShopMap near={near} ctx={ctx} sel={sel} cheapest={cheapest} onToggle={toggle}
+        onPick={(sids) => setSel(sids.slice(0, MAX_SEL))} />}
 
       {layout && data && near.length > 0 && (
         <GenLayout layout={layout} near={near} bargain={bargain} sel={sel} onToggle={toggle}
@@ -150,17 +152,41 @@ const OPEN_H = 380;
 
 /** The near shops on a map, like Torob's own: a short illustrated strip above the list (blue pins, the hopping
     radish) that opens the real map, each shop a pin with its price above it; a tap ticks it or not. */
-function ShopMap({ near, ctx, sel, cheapest, onToggle }: {
-  near: ShopOffer[]; ctx: Ctx; sel: number[]; cheapest: number | null; onToggle: (sid: number) => void;
+const ASK_IDEAS = ["فقط بازها", "قسطی‌ها", "ارزون‌ترین سه تا", "داخل پاساژ", "فقط اصل"];
+
+function ShopMap({ near, ctx, sel, cheapest, onToggle, onPick }: {
+  near: ShopOffer[]; ctx: Ctx; sel: number[]; cheapest: number | null; onToggle: (sid: number) => void; onPick: (sids: number[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [way, setWay] = useState<MapPath | null>(null);
-  const pins = near.slice(0, 15).map((i) => ({
+  const [ask, setAsk] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [focus, setFocus] = useState<{ sids: number[]; say: string; q: string } | null>(null);
+  // one sentence to the assistant pins only the shops it asks for; the facts and the count are the shops' own
+  const send = async (q: string) => {
+    if (!q.trim() || busy) return;
+    setBusy(true);
+    setOpen(true);
+    try {
+      const r = await api.mapAsk(q.trim(), near.slice(0, 40).map((i) => ({
+        sid: i.sid, name: i.name, price: i.price, minutes: i.travel?.minutes ?? null, open: i.open_at_visit.state,
+        installment: i.installments.length > 0, copy: i.authenticity?.status === "declared_copy" || i.authenticity?.status === "suspicious",
+        mall: i.mall_name, days: i.freshness?.days ?? null,
+      })));
+      setFocus({ sids: r.sids, say: r.say, q: q.trim() });
+      setAsk("");
+    } catch {
+      setFocus({ sids: near.map((i) => i.sid), say: "الان نتونستم بفهمم؛ دوباره بگو یا از پیشنهادها بزن.", q: q.trim() });
+    }
+    setBusy(false);
+  };
+  const shownShops = focus ? near.filter((i) => focus.sids.includes(i.sid)).sort((a, b) => focus.sids.indexOf(a.sid) - focus.sids.indexOf(b.sid)) : near;
+  const pins = shownShops.slice(0, 15).map((i) => ({
     id: i.sid, lat: i.lat, lon: i.lon, label: i.price ? short(i.price) : "؟",
     tone: sel.includes(i.sid) ? "pick" as const : i.open_at_visit.state === "closed" ? "closed" as const : i.sid === cheapest ? "cheap" as const : "normal" as const,
   }));
   // the way from the radish to the first ticked shop (or the nearest), along the streets like a map app's directions
-  const to = sel.find((s) => near.some((i) => i.sid === s)) ?? near[0]?.sid;
+  const to = focus?.sids[0] ?? sel.find((s) => near.some((i) => i.sid === s)) ?? near[0]?.sid;
   useEffect(() => {
     if (!to) return;
     let alive = true;
@@ -170,6 +196,7 @@ function ShopMap({ near, ctx, sel, cheapest, onToggle }: {
   // one real map: a still strip like Torob's (blue pins, the radish, the way), opening in place to the full map
   const shown = open ? pins : pins.map((p) => ({ ...p, tone: p.tone === "closed" ? "closed" as const : "normal" as const }));
   return (
+    <div className="wz-mapwrap">
     <div className={"wz-shopmap" + (open ? " open" : "")} onClick={open ? undefined : () => setOpen(true)}>
       <Suspense fallback={<div className="shimmer mapbox" style={{ height: STRIP_H }} />}>
         <MapView you={{ lat: ctx.lat, lon: ctx.lon }} pins={shown} onPick={open ? onToggle : undefined} height={open ? OPEN_H : STRIP_H}
@@ -181,6 +208,30 @@ function ShopMap({ near, ctx, sel, cheapest, onToggle }: {
         )}
         {open ? "کوچیک کن" : "فروشگاه‌ها روی نقشه"}
       </button>
+    </div>
+    <div className="mapask">
+      {focus && (
+        <div className="mapask-say fadein">
+          <span className="mapask-ava"><RadishLogo size={20} /></span>
+          <span className="grow">{focus.say}</span>
+          <span className="mapask-acts">
+            {focus.sids.length > 0 && <button className="chip sm on" onClick={() => onPick(focus.sids)}>همینا رو انتخاب کن</button>}
+            <button className="chip sm" onClick={() => setFocus(null)}>همه</button>
+          </span>
+        </div>
+      )}
+      <div className="mapask-ideas">
+        {ASK_IDEAS.map((t) => <button key={t} className={"chip sm" + (focus?.q === t ? " on" : "")} disabled={busy} onClick={() => send(t)}>{t}</button>)}
+      </div>
+      <div className="wz-field mapask-box">
+        <Icon name="spark" size={18} />
+        <input value={ask} onChange={(e) => setAsk(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send(ask)} enterKeyHint="send"
+          placeholder="به دستیار بگو کدوم مغازه‌ها رو نشون بده" aria-label="به دستیار بگو کدوم مغازه‌ها رو روی نقشه نشون بده" />
+        <button className="sendbtn" onClick={() => send(ask)} disabled={busy || !ask.trim()} aria-label="بفرست">
+          {busy ? <span className="mapask-spin" /> : <Icon name="up" size={18} stroke={2} />}
+        </button>
+      </div>
+    </div>
     </div>
   );
 }
@@ -247,15 +298,29 @@ function ShopRow({ i, on, cheapest, saving, onToggle, onInfo }: {
     : saving ? <span className="tag green">{toman(saving)} ارزان‌تر</span>
     : cheapest ? <span className="badge">ارزان‌ترین</span> : null;
   return (
-    <div className={"wz-shop" + (on ? " on" : "")}>
-      <button className="wz-shop-main" onClick={onToggle} role="checkbox" aria-checked={on}>
+    <div className={"wz-shop sc" + (on ? " on" : "")}>
+      <button className="wz-shop-main sc-main" onClick={onToggle} role="checkbox" aria-checked={on}>
         <span className={"selbox" + (on ? " on" : "")}>{on && <Icon name="check" size={14} stroke={2.6} />}</span>
-        <span className="grow wz-opt-txt">
-          <span className="r1"><span className="name ellipsis">{i.name}</span><span className="amount">{i.price ? toman(i.price) : "بدون قیمت"}</span></span>
-          <span className="r3"><TravelInline t={i.travel} /><OpenText s={i.open_at_visit} /><PriceAge f={i.freshness} />{tag}</span>
+        <span className="sc-body">
+          <span className="sc-top">
+            <b className="sc-name">{i.name}</b>
+            <span className="sc-price">{i.price ? <><b>{num(i.price)}</b><small>تومان</small></> : <small>بدون قیمت</small>}</span>
+          </span>
+          <span className="sc-meta">
+            <span className={"sc-open " + i.open_at_visit.state}><i /><OpenText s={i.open_at_visit} /></span>
+            <TravelInline t={i.travel} />
+            <PriceAge f={i.freshness} />
+          </span>
+          {(tag || i.mall_name || i.installments.length > 0) && (
+            <span className="sc-meta2">
+              {tag}
+              {i.installments.length > 0 && <span className="sc-chip">قسطی</span>}
+              {i.mall_name && <span className="sc-mall"><Icon name="building" size={13} />{i.mall_name.replace("علاالدین", "علاءالدین")}</span>}
+            </span>
+          )}
         </span>
       </button>
-      <button className="wz-info" onClick={onInfo} aria-label={`جزئیات ${i.name}`}><Icon name="info" size={18} /></button>
+      <button className="wz-info sc-info" onClick={onInfo} aria-label={`جزئیات ${i.name}`}><Icon name="info" size={18} /></button>
     </div>
   );
 }

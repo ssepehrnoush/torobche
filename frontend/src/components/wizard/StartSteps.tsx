@@ -4,6 +4,7 @@ import { fa, HERE, shortPlace } from "../../fmt";
 import { Icon } from "../../icons";
 import type { Ctx, Meta, PlaceArea, PlaceHit, TravelMode } from "../../types";
 import { activeFilters } from "../ContextBar";
+import { CatBar } from "./CatBar";
 import { Choice, GrowText, StepHead, WizFoot } from "./Shell";
 
 /* Every example is a real query: each one returns products from the dataset (checked with /api/search). */
@@ -27,6 +28,7 @@ export function NeedStep({ need, setNeed, meta, onNext }: {
   return (
     <>
       <img className="wz-art fadein" src="/img/hero.webp" width={960} height={480} alt="" />
+      <CatBar onPick={(t) => { setNeed(t); onNext(t); }} />
       <StepHead title="چی می‌خوای بخری؟" sub="مدلش رو نمی‌دونی؟ اشکالی نداره، همون‌طور که به فروشنده می‌گی بنویس." />
       <div className="wz-field">
         <GrowText value={need} onChange={setNeed} onEnter={() => need.trim() && onNext()} label="کالایی که می‌خواهید"

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { MapContainer, Marker, Polyline, useMap, useMapEvents } from "react-leaflet";
 import type { MapPath } from "../types";
 import { mascotHtml } from "./mascot";
-import { pinHtml, tagHtml } from "./pins";
+import { logoPinHtml, pinHtml } from "./pins";
 import { TorobTiles } from "./torobTiles";
 
 export type MapPin = { id: number; lat: number; lon: number; label: string; tone?: "normal" | "closed" | "pick" | "cheap" };
@@ -55,18 +55,24 @@ const RANK: Record<string, number> = { pick: 0, cheap: 1, normal: 2, closed: 3 }
     never shows a pile: ticked shops first, then the cheapest, then the rest. */
 function Pins({ pins, onPick, all, you, chips }: { pins: MapPin[]; onPick?: (id: number) => void; all?: boolean; you: { lat: number; lon: number }; chips?: boolean }) {
   const map = useMap();
-  const [shown, setShown] = useState<MapPin[]>([]);
+  const [shown, setShown] = useState<(MapPin & { more: number })[]>([]);
   const layout = () => {
     const me = map.latLngToContainerPoint([you.lat, you.lon]);
     // boxes by their centres: a label sits just above its point, the radish stands on its spot and keeps it clear
-    const kept: { x: number; y: number; w: number; h: number }[] = [{ x: me.x, y: me.y - 19, w: 36, h: 40 }];
-    const out: MapPin[] = [];
+    // a pin that waits is counted on the pin it would sit on («+۴»: four more shops in that mall); on the small strip
+    // the shops may stand by the radish (it is drawn over them), so the strip is never empty
+    const kept: { x: number; y: number; w: number; h: number; i: number }[] = chips ? [{ x: me.x, y: me.y - 19, w: 36, h: 40, i: -1 }] : [];
+    const out: (MapPin & { more: number })[] = [];
     for (const p of [...pins].sort((a, b) => RANK[a.tone ?? "normal"] - RANK[b.tone ?? "normal"])) {
       const pt = map.latLngToContainerPoint([p.lat, p.lon]);
-      const box = chips && p.label.length > 2 ? { x: pt.x, y: pt.y - 20, w: p.label.length * 7 + 40, h: 40 } : { x: pt.x, y: pt.y - 18, w: 26, h: 34 };
-      if (!all && kept.some((k) => Math.abs(k.x - box.x) < (k.w + box.w) / 2 + 2 && Math.abs(k.y - box.y) < (k.h + box.h) / 2 + 2)) continue;
-      kept.push(box);
-      out.push(p);
+      const box = p.label.length > 2 && chips ? { x: pt.x, y: pt.y - 30, w: Math.max(34, p.label.length * 7 + 18), h: 60 } : { x: pt.x, y: pt.y - 18, w: 30, h: 36 };
+      const hit = all ? undefined : kept.find((k) => Math.abs(k.x - box.x) < (k.w + box.w) / 2 + 2 && Math.abs(k.y - box.y) < (k.h + box.h) / 2 + 2);
+      if (hit) {
+        if (hit.i >= 0) out[hit.i].more++;
+        continue;
+      }
+      kept.push({ ...box, i: out.length });
+      out.push({ ...p, more: 0 });
     }
     setShown(out);
   };
@@ -79,10 +85,14 @@ function Pins({ pins, onPick, all, you, chips }: { pins: MapPin[]; onPick?: (id:
           key={p.id}
           position={[p.lat, p.lon]}
           zIndexOffset={(3 - RANK[p.tone ?? "normal"]) * 100}
-          icon={chips && p.label.length > 2
-            ? L.divIcon({ className: "", html: tagHtml(p.tone, p.label), iconSize: [0, 0] })
+          icon={p.label.length > 2 || !p.label
+            ? L.divIcon({ className: "", html: logoPinHtml(p.tone, p.label, !!chips, p.more), iconSize: [34, 36], iconAnchor: [17, 35] })
             : L.divIcon({ className: "", html: pinHtml(p.tone, p.label, false), iconSize: [28, 36], iconAnchor: [14, 34] })}
-          eventHandlers={{ click: () => onPick?.(p.id) }}
+          eventHandlers={{ click: () => {
+            // a counted pin first opens up (the shops around it come apart); shops of one mall share a spot, so close in it picks
+            if (onPick && p.more > 0 && map.getZoom() < 17) map.flyTo([p.lat, p.lon], Math.min(map.getZoom() + 2, 17), { duration: 0.5 });
+            else onPick?.(p.id);
+          } }}
         />
       ))}
     </>
@@ -133,7 +143,7 @@ export function MapView({ you, youLabel, pins, route, paths, onPick, small, heig
         <TorobTiles />
         <Still on={!!still} />
         <Fit points={pts} top={youLabel ? 84 : 44} /* room above the radish (and its label) at the top edge */ />
-        <Marker position={[you.lat, you.lon]} icon={youLabel ? liveIcon(youLabel) : youIcon} zIndexOffset={youLabel ? 1000 : 0} />
+        <Marker position={[you.lat, you.lon]} icon={youLabel ? liveIcon(youLabel) : youIcon} zIndexOffset={1000} />
         {paths?.length ? paths.map((p, i) => <PathLine key={i} p={p} />)
           : route && route.length > 1 && <Polyline positions={route} pathOptions={DOTTED} />}
         <Pins pins={pins} onPick={onPick} all={allPins} you={you} chips={chips} />

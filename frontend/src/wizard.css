@@ -371,3 +371,87 @@ main.wz-main > :not(.wz-foot) { animation: wzin .26s var(--ease) both; }
 .chan.off .chan-cap { color: var(--faint); }
 .chan-say { font-size: 12.5px; line-height: 1.85; color: #3b1f7a; animation: rise .3s var(--ease); }
 @media (prefers-reduced-motion: reduce) { .chan-me, .chan-fly, .chan.calling .chan-shop, .chan-ring, .chan-wave i { animation: none; } }
+
+/* the shop on the map: Torob's logo standing on its tip (logoPinHtml), its price as a small tag above */
+.lpin { position: relative; width: 34px; height: 36px; cursor: pointer; transition: transform .18s var(--ease); }
+.lpin svg { display: block; overflow: visible; filter: drop-shadow(0 2px 3px rgba(15, 23, 42, .25)); }
+.lpin:hover { transform: translateY(-2px) scale(1.06); }
+.lpin.closed { filter: grayscale(.85); opacity: .75; }
+.lpin.pick svg { transform: scale(1.12); transform-origin: 50% 100%; }
+.lpin-tag { position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%); white-space: nowrap; direction: rtl;
+  padding: 3px 9px; border-radius: 9px; background: #fff; color: #0f172a; font: 800 13px/1.35 IRANYekanX, Vazirmatn, Tahoma, sans-serif;
+  box-shadow: 0 0 0 1px #e6eaf1, 0 3px 10px rgba(15, 23, 42, .16); }
+.lpin.pick .lpin-tag { background: var(--brand); color: #fff; box-shadow: 0 3px 10px rgba(233, 30, 51, .35); }
+.lpin.cheap .lpin-tag { color: var(--green); box-shadow: 0 0 0 1.5px var(--green), 0 3px 10px rgba(15, 23, 42, .14); }
+/* talking to the map (ShopMap): the assistant's one line, ideas, and the box */
+.wz-mapwrap { display: flex; flex-direction: column; gap: 8px; }
+.mapask { display: flex; flex-direction: column; gap: 8px; }
+.mapask-say { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; background: linear-gradient(90deg, #fff5f6, #f4f7ff);
+  box-shadow: inset 0 0 0 1px #f3dde1; font-size: 13.5px; line-height: 1.8; color: var(--ink); }
+.mapask-ava { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(15, 23, 42, .1); }
+.mapask-acts { display: flex; flex-direction: column; gap: 4px; flex: none; }
+.mapask-ideas { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.mapask-ideas .chip { flex: none; background: #fff; box-shadow: inset 0 0 0 1px #e3e8f0; font-weight: 700; }
+.mapask-ideas .chip.on { background: var(--blue-soft); box-shadow: inset 0 0 0 1.5px var(--blue-2); }
+.mapask-acts .chip:not(.on) { background: #fff; box-shadow: inset 0 0 0 1px #e3e8f0; }
+.lpin-more { position: absolute; top: 1px; right: -11px; direction: ltr; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 10px; background: #0f172a; color: #fff;
+  font: 800 11px/19px IRANYekanX, Vazirmatn, Tahoma, sans-serif; text-align: center; box-shadow: 0 0 0 2px #fff; }
+.mapask-box { border-radius: 16px; padding: 4px 10px 4px 4px; gap: 8px; box-shadow: 0 0 0 1px #e6eaf1, 0 4px 14px -8px rgba(15, 23, 42, .25); }
+.mapask-box > svg { color: var(--ai); flex: none; }
+.mapask-box input { font-size: 14.5px; }
+.mapask-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .5); border-top-color: #fff; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+/* shop cards: name, then open now and the way there, then price age, mall and instalments; the price in its own column */
+.wz-shop.sc { display: flex; align-items: stretch; padding: 0; border-radius: 18px; background: #fff; border: 0;
+  box-shadow: 0 0 0 1px #edf0f5, 0 8px 18px -12px rgba(15, 23, 42, .18); transition: box-shadow .2s var(--ease), background .2s; }
+.wz-shop.sc.on { background: #f8fbff; box-shadow: 0 0 0 1.5px var(--blue-2), 0 10px 22px -14px rgba(37, 99, 235, .4); }
+.wz-shop.sc .sc-main { flex: 1; display: flex; align-items: flex-start; gap: 10px; padding: 13px 14px 12px 4px; min-width: 0; text-align: right; background: transparent; }
+.wz-shop.sc .selbox { margin-top: 3px; }
+.sc-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.sc-top { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.sc-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 800; color: #0f172a; line-height: 1.6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-meta, .sc-meta2 { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 12px; font-size: 12.5px; line-height: 1.7; color: #64748b; }
+.sc-meta2 { gap: 6px 8px; }
+.sc-meta2 .badge, .sc-meta2 .tag { font-size: 11.5px; }
+.sc-open { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; }
+.sc-open i { width: 7px; height: 7px; border-radius: 50%; background: #94a3b8; }
+.sc-open.open i { background: var(--green); box-shadow: 0 0 0 3px #dcfce7; }
+.sc-open.closed i { background: #dc2626; box-shadow: 0 0 0 3px #fee2e2; }
+.sc-mall { display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: #475569; }
+.sc-chip { padding: 0 8px; border-radius: 8px; background: #eef4ff; color: #2563eb; font-size: 11.5px; font-weight: 800; line-height: 1.8; }
+.sc-price { flex: none; display: inline-flex; align-items: baseline; gap: 4px; }
+.sc-price b { font-size: 16px; font-weight: 900; color: #0f172a; }
+.sc-price small { font-size: 11px; font-weight: 700; color: #94a3b8; }
+.wz-shop.sc .sc-info { flex: none; width: 38px; display: flex; justify-content: center; padding-top: 14px; color: #a3aec0; background: transparent; }
+/* the channel pictures: smooth, not pixel */
+.chan-me { position: relative; display: grid; place-items: center; }
+.chan-me svg { image-rendering: auto; }
+.chan-ai { position: absolute; bottom: -3px; left: -5px; padding: 0 4px; border-radius: 6px; background: #7c3aed; color: #fff; font: 900 9px/1.6 system-ui, sans-serif; font-style: normal; }
+.chan-fly { animation-timing-function: cubic-bezier(.45, 0, .2, 1) !important; }
+.chan-fly svg { display: block; filter: drop-shadow(0 2px 3px rgba(15, 23, 42, .18)); }
+.chan-wave i { animation-timing-function: ease-in-out !important; }
+
+/* Torob's categories under the hero: one line that scrolls sideways (faded at its ends), a tapped one underlined
+   like torob.com, and its leaves from the dataset opening right under it */
+.wz-cats { margin: 2px -16px 4px; }
+.wz-cats-row { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; padding: 0 12px; overscroll-behavior-x: contain; box-shadow: inset 0 -1px 0 #e8ecf2;
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 14px, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to left, transparent 0, #000 14px, #000 calc(100% - 28px), transparent 100%); }
+.wz-cats-row::-webkit-scrollbar { display: none; }
+.wz-cat { position: relative; flex: none; padding: 9px 9px 11px; font-size: 13px; font-weight: 600; color: #5b6475; white-space: nowrap;
+  background: none; transition: color .18s; }
+.wz-cat::after { content: ""; position: absolute; right: 9px; left: 9px; bottom: 3px; height: 2.5px; border-radius: 2px; background: var(--brand);
+  transform: scaleX(0); transition: transform .22s var(--ease); }
+.wz-cat:hover { color: var(--ink); }
+.wz-cat.on { color: var(--ink); font-weight: 800; }
+.wz-cat.on::after { transform: scaleX(1); }
+.wz-cat:focus-visible { outline: 2px solid var(--blue-2); outline-offset: -4px; border-radius: 10px; }
+.wz-cat-open { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 6px 16px 4px; animation: catopen .26s var(--ease); }
+.wz-cat-open::-webkit-scrollbar { display: none; }
+.wz-leaf { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 8px 12px; border-radius: 14px; background: #fff;
+  box-shadow: 0 0 0 1px #e6eaf1, 0 4px 12px -8px rgba(15, 23, 42, .25); text-align: right; transition: box-shadow .15s, transform .15s; }
+.wz-leaf b { font-size: 13px; font-weight: 800; color: var(--ink); white-space: nowrap; }
+.wz-leaf small { font-size: 11px; font-weight: 600; color: #94a3b8; }
+.wz-leaf:active { transform: scale(.97); }
+.wz-leaf:hover { box-shadow: 0 0 0 1.5px var(--brand), 0 4px 12px -8px rgba(233, 30, 51, .35); }
+@keyframes catopen { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }

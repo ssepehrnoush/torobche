@@ -60,6 +60,7 @@ export const api = {
   insight: (pid: number, ctx: Ctx, signal?: AbortSignal) =>
     post<{ headline: string; body: string; pick_sid: number | null }>("/api/shops/insight", { pid, ctx }, signal),
   shop: (sid: number, pid: number | null, ctx: Ctx) => post<import("./types").ShopDetail>("/api/shop", { sid, pid, ctx }),
+  mapAsk: (text: string, shops: Record<string, unknown>[]) => post<{ sids: number[]; say: string; filter: Record<string, unknown> }>("/api/map/ask", { text, shops }),
   way: (sid: number, ctx: Ctx) => post<import("./types").MapPath>("/api/way", { sid, ctx }),
   mall3d: (sid: number, pid: number | null, ctx: Ctx) => post<import("./components/mall3d/scene").Mall3DData>("/api/mall3d", { sid, pid, ctx }),
   product: (pid: number, ctx: Ctx) => post<any>("/api/product", { pid, ctx }),

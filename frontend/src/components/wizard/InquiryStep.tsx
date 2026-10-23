@@ -7,7 +7,8 @@ import type { Ctx, InquiryShop, InquirySummary, Reply } from "../../types";
 import { AiNote } from "../bits";
 import type { InquiryState } from "../InquiryView";
 import { StepHead, WizFoot } from "./Shell";
-import { PX } from "../pixelIcons";
+import { CHAN } from "../chanIcons";
+import { RadishLogo } from "../Logo";
 import { ShopLinkSheet } from "./ShopLink";
 
 const OUTCOME: Record<Reply["outcome"], { label: string; tone: string }> = {
@@ -72,17 +73,17 @@ function ChanAnim({ log, reply, demo }: { log: Chan[]; reply?: Reply; demo: bool
     : silent ? "از هیچ راهی جواب نداد"
     : off ? `${c!.label} جواب نداد، راه بعدی…`
     : `${c!.label} رفت، منتظر جواب${c!.real ? " (واقعی)" : ""}`;
-  const icon = way === "whatsapp" ? PX.whatsapp(20) : way === "call" ? PX.call(20) : PX.sms(20);
+  const icon = way === "whatsapp" ? CHAN.whatsapp(22) : way === "call" ? CHAN.call(22) : CHAN.sms(22);
   return (
     <div className={`chan ${way}${calling ? " calling" : ""}${reply ? " done" : ""}${off ? " off" : ""}`} data-call={way === "call" ? phase : undefined}>
       <div className="chan-row">
-        <span className="chan-me" dangerouslySetInnerHTML={{ __html: PX.radishAi(30) }} />
+        <span className="chan-me"><RadishLogo size={28} /><i className="chan-ai">AI</i></span>
         <span className="chan-track">
           {!reply && !calling && !off && <i key={`${way}-${log.length}`} className="chan-fly" dangerouslySetInnerHTML={{ __html: icon }} />}
           {calling && <span className="chan-wave">{[0, 1, 2, 3, 4, 5].map((i) => <i key={i} />)}</span>}
-          {reply && <i className="chan-fly back" dangerouslySetInnerHTML={{ __html: PX.reply(20) }} />}
+          {reply && <i className="chan-fly back" dangerouslySetInnerHTML={{ __html: CHAN.reply(22) }} />}
         </span>
-        <span className="chan-shop" dangerouslySetInnerHTML={{ __html: PX.shop(30) }} />
+        <span className="chan-shop" dangerouslySetInnerHTML={{ __html: CHAN.shop(32) }} />
         {calling && <><em className="chan-ring r1" /><em className="chan-ring r2" /></>}
       </div>
       <span className="chan-cap">{caption}</span>
