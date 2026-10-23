@@ -9,13 +9,13 @@ export type MapPin = { id: number; lat: number; lon: number; label: string; tone
 
 const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
-function Fit({ points }: { points: [number, number][] }) {
+function Fit({ points, top = 36 }: { points: [number, number][]; top?: number }) {
   const map = useMap();
   const key = points.map((p) => p.join(",")).join("|");
   useEffect(() => {
     const fit = () => {
       if (points.length === 1) map.setView(points[0], 15);
-      else if (points.length > 1) map.fitBounds(L.latLngBounds(points), { padding: [36, 36], maxZoom: 16 });
+      else if (points.length > 1) map.fitBounds(L.latLngBounds(points), { paddingTopLeft: [36, top], paddingBottomRight: [36, 36], maxZoom: 16 });
     };
     fit();
     // a map that grows or shrinks (the shops strip opening full size) redraws its tiles and fits its points again
@@ -120,7 +120,7 @@ export function MapView({ you, youLabel, pins, route, paths, onPick, small, heig
     <div className={"mapbox" + (small ? " small" : "")} style={height ? { height } : undefined}>
       <MapContainer center={[you.lat, you.lon]} zoom={14} style={{ height: "100%", width: "100%" }} zoomControl={false} attributionControl>
         <TileLayer url={TILE_URL} attribution="&copy; OpenStreetMap" maxZoom={19} />
-        <Fit points={pts} />
+        <Fit points={pts} top={youLabel ? 84 : 44} /* room above the radish (and its label) at the top edge */ />
         <Marker position={[you.lat, you.lon]} icon={youLabel ? liveIcon(youLabel) : youIcon} zIndexOffset={youLabel ? 1000 : 0} />
         {paths?.length ? paths.map((p, i) => <PathLine key={i} p={p} />)
           : route && route.length > 1 && <Polyline positions={route} pathOptions={DOTTED} />}
