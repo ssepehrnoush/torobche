@@ -1,6 +1,6 @@
 /* The person on the map: a small pixel radish that hops in place (CSS: .mascot), in Torob's playful spirit.
    Drawn here, one letter per pixel, so it stays crisp at any size and needs no image file. */
-const ART = [
+export const ART = [
   "........LL.L..",
   ".......lLLLLl.",
   "........lLl...",
@@ -15,7 +15,7 @@ const ART = [
   "....ORRRRRO...",
   ".....OOOOO....",
 ];
-const COLOURS: Record<string, string> = {
+export const COLOURS: Record<string, string> = {
   O: "#b3132b", R: "#f2475d", H: "#ff9aa8", E: "#3a1820", C: "#ff8094", S: "#8f1023", L: "#6fbc23", l: "#4f9418",
 };
 

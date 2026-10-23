@@ -153,6 +153,7 @@ export type ShopDetail = ShopBrief & {
   mall_guide: MallGuide | null;
   mall_building: MallBuilding | null;
   arrive: { near: boolean; title: string; text: string } | null;
+  mall3d: boolean; // this mall has the 3D model
   offer: { price: number | null; freshness: Freshness; seller_title: string; warranty: string | null; description: string | null } | null;
   same_mall_offers: { sid: number; name: string; mall: string | null; price: number | null }[];
   phone_note: string;

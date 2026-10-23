@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { api } from "../api";
 import { fa, jalali, toman } from "../fmt";
 import { Icon } from "../icons";
@@ -6,6 +6,8 @@ import type { Authenticity, Ctx, MallBuilding as Building, MallGuide, ShopDetail
 import { Fold, MetroStrip, OpenText } from "./bits";
 import { MallBuilding } from "./MallBuilding";
 import { MASCOT_SVG } from "./mascot";
+
+const Mall3D = lazy(() => import("./mall3d/Mall3D"));
 import { useNavPick } from "./NavPick";
 import { Sheet } from "./Sheet";
 import { freshTone } from "./ShopsView";
@@ -26,6 +28,7 @@ export function ShopSheet({ sid, pid, ctx, auth, onClose, onInquiry, onVisit, on
   const [d, setD] = useState<ShopDetail | null>(null);
   const [err, setErr] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({ guide: true });
+  const [show3d, setShow3d] = useState(false);
   const nav = useNavPick();
   const flip = (k: string) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   useEffect(() => {
@@ -91,7 +94,7 @@ export function ShopSheet({ sid, pid, ctx, auth, onClose, onInquiry, onVisit, on
           <div className="folds">
             {d.mall_guide && (
               <Fold title="مسیر داخل پاساژ" summary={[d.mall_guide.floor, d.mall_guide.unit ? `واحد ${d.mall_guide.unit}` : ""].filter(Boolean).join("، ")} open={!!open.guide} onToggle={() => flip("guide")}>
-                <Guide g={d.mall_guide} b={d.mall_building} arrive={d.arrive} onOpenShop={onOpenShop} />
+                <Guide g={d.mall_guide} b={d.mall_building} arrive={d.arrive} onOpenShop={onOpenShop} on3d={d.mall3d ? () => setShow3d(true) : undefined} />
               </Fold>
             )}
             <Fold title="ساعت کاری ثبت‌شده" summary={today ? `امروز ${today.text}` : undefined} open={!!open.hours} onToggle={() => flip("hours")}>
@@ -137,14 +140,15 @@ export function ShopSheet({ sid, pid, ctx, auth, onClose, onInquiry, onVisit, on
         </>
       )}
     </Sheet>
+    {show3d && <Suspense fallback={null}><Mall3D sid={sid} pid={pid} ctx={ctx} onClose={() => setShow3d(false)} /></Suspense>}
     </>
   );
 }
 
 /** Inside the mall: for someone at its door one plain sentence (shown by itself when their spot is already there),
     the floors drawn as a building, then the steps. */
-function Guide({ g, b, arrive, onOpenShop }: {
-  g: MallGuide; b: Building | null; arrive: ShopDetail["arrive"]; onOpenShop: (sid: number) => void;
+function Guide({ g, b, arrive, onOpenShop, on3d }: {
+  g: MallGuide; b: Building | null; arrive: ShopDetail["arrive"]; onOpenShop: (sid: number) => void; on3d?: () => void;
 }) {
   const [here, setHere] = useState(!!arrive?.near);
   return (
@@ -157,6 +161,16 @@ function Guide({ g, b, arrive, onOpenShop }: {
       ) : (
         <button className="textbtn atdoor-btn" onClick={() => setHere(true)}><Icon name="pin" size={16} /> الان دم پاساژم، کجا برم؟</button>
       ))}
+      {on3d && (
+        <button className="m3d-open" onClick={on3d}>
+          <span className="m3d-open-ico" dangerouslySetInnerHTML={{ __html: MASCOT_SVG }} />
+          <span className="grow stack" style={{ gap: 0 }}>
+            <b>پاساژ رو سه‌بعدی ببین</b>
+            <span className="meta">تربچه از در ورودی راه رو تا همین مغازه نشونت می‌ده</span>
+          </span>
+          <Icon name="left" size={18} />
+        </button>
+      )}
       {b && <MallBuilding b={b} onOpenShop={onOpenShop} />}
       <div className="guidewrap">
         <ol className="guide grow">

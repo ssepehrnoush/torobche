@@ -269,6 +269,14 @@ class ShopIn(BaseModel):
     ctx: Ctx = Ctx()
 
 
+@app.post("/api/mall3d")
+async def mall3d(body: ShopIn):
+    d = await asyncio.to_thread(shops.mall3d, body.sid, body.ctx, body.pid)
+    if not d:
+        raise HTTPException(404, "این پاساژ مدل سه‌بعدی ندارد")
+    return d
+
+
 @app.post("/api/shop")
 async def shop_detail(body: ShopIn):
     d = await asyncio.to_thread(shops.shop_detail, body.sid, body.ctx, body.pid)

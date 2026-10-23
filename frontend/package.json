@@ -9,11 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/three": "0.169.0",
     "leaflet": "1.9.4",
     "qrcode-generator": "1.4.4",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "react-leaflet": "5.0.0",
+    "three": "0.169.0",
     "vazirmatn": "33.0.3"
   },
   "devDependencies": {

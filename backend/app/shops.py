@@ -476,7 +476,7 @@ def mall_guide(s: Shop) -> dict | None:
 _BUILDING_MAX = 32  # dots per floor in the drawing; shops past it are thinned, never this shop or one with the product
 
 
-def mall_building(s: Shop, prices: dict[int, int | None]) -> dict | None:
+def mall_building(s: Shop, prices: dict[int, int | None], cap: int = _BUILDING_MAX) -> dict | None:
     """The mall as a stack of floors for a simple drawing: every shop of the dataset in it on its floor, in the order
     of their unit numbers (the order is real, the spacing is not), this shop and the ones with the same product
     (`prices`, sid -> price) marked. None when the floor is unknown or the mall has too few shops to draw."""
@@ -494,7 +494,7 @@ def mall_building(s: Shop, prices: dict[int, int | None]) -> dict | None:
     for f in sorted(by_floor, reverse=True):
         row = sorted(by_floor[f], key=lambda o: (_unit_int(o.unit) is None, _unit_int(o.unit) or 0, o.sid))
         marked = sum(1 for o in row if o.sid == s.sid or o.sid in prices)
-        step = max(1, -(-(len(row) - marked) // max(1, _BUILDING_MAX - marked)))
+        step = max(1, -(-(len(row) - marked) // max(1, cap - marked)))
         kept, k = [], 0
         for o in row:
             if o.sid == s.sid or o.sid in prices:
@@ -509,6 +509,29 @@ def mall_building(s: Shop, prices: dict[int, int | None]) -> dict | None:
              "price": prices.get(o.sid)} for o in kept]})
     return {"mall_name": s.mall_name, "target_floor": s.floor_num, "unit": s.unit and fa_digits(s.unit),
             "offers": sum(1 for f in floors for x in f["shops"] if x["kind"] == "offer"), "floors": floors}
+
+
+# Malls drawn as a 3D model for now (one, for the demo); any mall of the data could be, from the same fields.
+MALL3D = {"پاساژ علاالدین"}
+
+
+def _same_product_prices(s: Shop, pid: int | None) -> dict[int, int | None]:
+    if not pid or not s.mall_name:
+        return {}
+    mates = {m.sid for m in same_mall_shops(s)}
+    return {o["sid"]: (o["price_toman"] if o["price_ok"] else None) for o in offers_for_product(pid) if o["sid"] in mates}
+
+
+def mall3d(sid: int, ctx: Ctx, pid: int | None = None) -> dict | None:
+    """Everything the 3D model needs: every shop of the mall on its floor in unit order (none thinned), this one and
+    the ones with the same product marked, and the one sentence for the way in."""
+    s = shop(sid)
+    if not s or s.mall_name not in MALL3D:
+        return None
+    b = mall_building(s, _same_product_prices(s, pid), cap=10_000)
+    if not b:
+        return None
+    return {**b, "shop": s.name, "arrive": arrive_line(s, mall_guide(s), ctx)}
 
 
 def arrive_line(s: Shop, guide: dict | None, ctx: Ctx) -> dict | None:
@@ -564,6 +587,7 @@ def shop_detail(sid: int, ctx: Ctx, pid: int | None = None) -> dict | None:
         "categories": cats, "n_products": s.n_products, "providers": s.providers,
         "mall_guide": guide, "offer": offer, "same_mall_offers": mall_alts,
         "mall_building": mall_building(s, prices) if guide else None, "arrive": arrive_line(s, guide, ctx),
+        "mall3d": s.mall_name in MALL3D and s.floor_num is not None,
         "phone_note": "شماره‌های تلفن در داده هکاتون ساختگی هستند",
         "nav": nav_links(s.lat, s.lon, s.name, (ctx.lat, ctx.lon), ctx.travel_mode),
     }
