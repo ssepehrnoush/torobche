@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { fa } from "../../fmt";
+import { ScrollRow } from "../ScrollRow";
 
 /* Torob's own top row of categories. The dataset has no top level, only leaf categories, so each one opens, in
    place, the leaves of the dataset that belong under it (names and product counts from its categories table);
@@ -24,21 +25,21 @@ export function CatBar({ onPick }: { onPick: (text: string) => void }) {
   const [on, setOn] = useState<number | null>(null);
   return (
     <div className="wz-cats fadein">
-      <div className="wz-cats-row" role="toolbar" aria-label="دسته‌بندی‌ها">
+      <ScrollRow className="wz-cats-row" role="toolbar" aria-label="دسته‌بندی‌ها">
         {CATS.map(([name], k) => (
           <button key={name} className={"wz-cat" + (on === k ? " on" : "")} aria-expanded={on === k} onClick={() => setOn(on === k ? null : k)}>
             {name}
           </button>
         ))}
-      </div>
+      </ScrollRow>
       {on !== null && (
-        <div className="wz-cat-open" key={on}>
+        <ScrollRow className="wz-cat-open" key={on}>
           {CATS[on][1].map(([leaf, n]) => (
             <button key={leaf} className="wz-leaf" onClick={() => onPick(leaf)}>
               <b>{leaf}</b><small>{fa(n)} کالا</small>
             </button>
           ))}
-        </div>
+        </ScrollRow>
       )}
     </div>
   );

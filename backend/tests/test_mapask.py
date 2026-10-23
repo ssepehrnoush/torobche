@@ -33,3 +33,11 @@ def test_model_needs_the_words(monkeypatch):
     r = ask("ارزون‌ترین دو تا که قسطی باشه")
     assert r["filter"] == {"installment": True, "sort": "price", "limit": 2}
     assert r["sids"] == [2, 1]
+
+
+def test_price_range(monkeypatch):
+    monkeypatch.setattr(llm, "available", lambda: False)
+    r = ask("بین ۳٫۸ تا ۴٫۲ میلیون")
+    assert r["filter"] == {"min_price": 3_800_000, "max_price": 4_200_000} and r["sids"] == [1, 2]
+    assert "بین ۳٫۸ تا ۴٫۲ میلیون" in r["say"]
+    assert ask("بالای ۴ میلیون")["sids"] == [1]

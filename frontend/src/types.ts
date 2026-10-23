@@ -318,7 +318,7 @@ export type Stroll = {
 
 /* Generative UI: the next wizard screen, built by the model from a fixed box of blocks (backend genui.py). */
 export type GenKnown = { place: boolean; travel: boolean };
-export type GenAnswer = { q: string; a: string; budget?: number };
+export type GenAnswer = { q: string; a: string; budget?: number; budget_min?: number }; // budget: the top, 0 for none
 export type GenCompare = {
   products: { pid: number; title: string; image: string | null; price_min: number | null; n_nearby?: number; nearby_min_price?: number | null; copy_hint?: string | null }[];
   rows: { key: string; values: (string | null)[]; differs: boolean }[];

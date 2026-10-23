@@ -11,8 +11,16 @@ const MODES: Record<TravelMode, string> = { walk: "پیاده", car: "با ما�
 const PRESETS = [10, 20, 30, 45, 60];
 
 export function activeFilters(ctx: Ctx): number {
-  return (ctx.visit !== "now" ? 1 : 0) + (ctx.budget_max ? 1 : 0) + (ctx.installments_only ? 1 : 0) +
+  return (ctx.visit !== "now" ? 1 : 0) + (ctx.budget_max || ctx.budget_min ? 1 : 0) + (ctx.installments_only ? 1 : 0) +
     (ctx.open_only ? 1 : 0) + (ctx.torob_pay_only ? 1 : 0) + (ctx.originality === "original_only" ? 1 : 0);
+}
+
+/** The budget in a few words: «۵ تا ۲۰ میلیون», «تا ۲۰ میلیون», «از ۵ میلیون»; empty when there is none. */
+export function budgetText(c: Pick<Ctx, "budget_min" | "budget_max">): string {
+  if (c.budget_min && c.budget_max) return `${short(c.budget_min)} تا ${short(c.budget_max)}`;
+  if (c.budget_max) return `تا ${short(c.budget_max)}`;
+  if (c.budget_min) return `از ${short(c.budget_min)}`;
+  return "";
 }
 
 export function rangeText(ctx: Ctx): string {
@@ -25,8 +33,8 @@ export function ctxChanges(a: Ctx, b: Ctx, meta: Meta | null): string[] {
   if (b.place !== a.place) out.push(`از ${shortPlace(b.place)}`);
   if (b.travel_mode !== a.travel_mode) out.push(MODES[b.travel_mode]);
   if (b.range_mode !== a.range_mode || b.range_minutes !== a.range_minutes || b.radius_km !== a.radius_km) out.push(`تا ${rangeText(b)}`);
-  if (b.budget_max !== a.budget_max && b.budget_max) out.push(`تا ${short(b.budget_max)}`);
-  if (b.budget_max !== a.budget_max && !b.budget_max) out.push("بدون سقف بودجه");
+  if ((b.budget_max !== a.budget_max || b.budget_min !== a.budget_min) && budgetText(b)) out.push(budgetText(b));
+  if ((b.budget_max !== a.budget_max || b.budget_min !== a.budget_min) && !budgetText(b)) out.push("بدون محدودیت بودجه");
   if (b.installments_only !== a.installments_only) out.push(b.installments_only ? "فقط قسطی" : "قسطی و نقدی");
   if (b.originality !== a.originality) out.push(b.originality === "original_only" ? "فقط کالای اصل" : "اصل و غیراصل");
   if (b.open_only !== a.open_only && b.open_only) out.push("فقط باز");
@@ -148,7 +156,9 @@ export function FiltersButton({ ctx, onOpen }: { ctx: Ctx; onOpen: () => void })
 }
 
 export function FiltersSheet({ ctx, setCtx, meta, onClose }: { ctx: Ctx; setCtx: (c: Ctx) => void; meta: Meta | null; onClose: () => void }) {
-  const [custom, setCustom] = useState("");
+  const [lo, setLo] = useState("");
+  const [hi, setHi] = useState("");
+  const amount = (s: string) => { const v = parseToman(s); return v ? (v < 1000 ? v * 1_000_000 : v) : null; };
   const toggle = (k: "installments_only" | "open_only" | "torob_pay_only") => setCtx({ ...ctx, [k]: !ctx[k] });
   return (
     <Sheet title="فیلترها" onClose={onClose}
@@ -169,23 +179,26 @@ export function FiltersSheet({ ctx, setCtx, meta, onClose }: { ctx: Ctx; setCtx:
       </section>
 
       <section className="sec">
-        <h3>سقف بودجه</h3>
+        <h3>بودجه</h3>
         <div className="chips">
-          <button className={"chip" + (!ctx.budget_max ? " on" : "")} onClick={() => setCtx({ ...ctx, budget_max: null, budget_min: null })}>مهم نیست</button>
+          <button className={"chip" + (!budgetText(ctx) ? " on" : "")} onClick={() => setCtx({ ...ctx, budget_max: null, budget_min: null })}>همهٔ قیمت‌ها</button>
           {BUDGETS.map((b) => (
-            <button key={b} className={"chip" + (ctx.budget_max === b ? " on" : "")} onClick={() => setCtx({ ...ctx, budget_max: b })}>
+            <button key={b} className={"chip" + (ctx.budget_max === b && !ctx.budget_min ? " on" : "")} onClick={() => setCtx({ ...ctx, budget_max: b, budget_min: null })}>
               تا {short(b)}
             </button>
           ))}
         </div>
-        <form className="row" onSubmit={(e) => {
+        <form className="row budget-range" onSubmit={(e) => {
           e.preventDefault();
-          const v = parseToman(custom);
-          if (v) setCtx({ ...ctx, budget_max: v < 1000 ? v * 1_000_000 : v });
+          let a = amount(lo), b = amount(hi);
+          if (a && b && a > b) [a, b] = [b, a];
+          if (a || b) setCtx({ ...ctx, budget_min: a, budget_max: b });
         }}>
-          <input className="input grow" placeholder="مبلغ دلخواه، مثلاً ۱۵ میلیون" value={custom} onChange={(e) => setCustom(e.target.value)} aria-label="سقف بودجهٔ دلخواه" />
+          <label className="budget-end"><span>از</span><input className="input" inputMode="numeric" placeholder="مثلاً ۵ میلیون" value={lo} onChange={(e) => setLo(e.target.value)} aria-label="کمترین قیمت" /></label>
+          <label className="budget-end"><span>تا</span><input className="input" inputMode="numeric" placeholder="مثلاً ۱۵ میلیون" value={hi} onChange={(e) => setHi(e.target.value)} aria-label="بیشترین قیمت" /></label>
           <button className="btn ghost sm" type="submit">ثبت</button>
         </form>
+        {budgetText(ctx) && <p className="meta" style={{ margin: 0 }}>الان: {budgetText(ctx)} تومان</p>}
       </section>
 
       <div className="list">

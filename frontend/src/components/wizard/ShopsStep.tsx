@@ -3,8 +3,9 @@ import { api } from "../../api";
 import { fa, num, short, shortPlace, toman } from "../../fmt";
 import { Icon } from "../../icons";
 import { RadishLogo } from "../Logo";
+import { ScrollRow } from "../ScrollRow";
 import type { Authenticity, Ctx, GenShops, MapPath, ShopOffer, ShopsResult, TravelMode } from "../../types";
-import { activeFilters } from "../ContextBar";
+import { activeFilters, budgetText } from "../ContextBar";
 import { AuthBadge, OpenText, PriceAge, TravelInline } from "../bits";
 import { Img } from "../Products";
 import { GenBadge } from "./GenStep";
@@ -220,9 +221,9 @@ function ShopMap({ near, ctx, sel, cheapest, onToggle, onPick }: {
           </span>
         </div>
       )}
-      <div className="mapask-ideas">
+      <ScrollRow className="mapask-ideas">
         {ASK_IDEAS.map((t) => <button key={t} className={"chip sm" + (focus?.q === t ? " on" : "")} disabled={busy} onClick={() => send(t)}>{t}</button>)}
-      </div>
+      </ScrollRow>
       <div className="wz-field mapask-box">
         <Icon name="spark" size={18} />
         <input value={ask} onChange={(e) => setAsk(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send(ask)} enterKeyHint="send"
@@ -249,18 +250,18 @@ function CondBar({ ctx, setCtx, onFilters, onPlace }: { ctx: Ctx; setCtx: (c: Ct
   const more = (ctx.visit !== "now" ? 1 : 0) + (ctx.torob_pay_only ? 1 : 0);
   return (
     <div className="wz-cond">
-      <div className="chips nowrap" role="toolbar" aria-label="شرط‌های جستجو">
+      <ScrollRow className="chips nowrap" role="toolbar" aria-label="شرط‌های جستجو">
         <button className="chip sm" onClick={onPlace}><Icon name="pin" size={14} /> {shortPlace(ctx.place)}</button>
         <button className={"chip sm" + (range ? " on" : "")} onClick={() => setRange(!range)} aria-expanded={range}>
           <Icon name={mode[2]} size={14} /> {ctx.range_mode === "km" ? `${fa(ctx.radius_km)} کیلومتر` : `${fa(ctx.range_minutes)} دقیقه ${mode[1]}`}
           <Icon name="down" size={13} />
         </button>
-        <button className={"chip sm" + (ctx.budget_max ? " on" : "")} onClick={onFilters}>{ctx.budget_max ? `تا ${short(ctx.budget_max)}` : "بودجه"}</button>
+        <button className={"chip sm" + (budgetText(ctx) ? " on" : "")} onClick={onFilters}>{budgetText(ctx) || "بودجه"}</button>
         <button className={"chip sm" + (ctx.installments_only ? " on" : "")} onClick={() => flip("installments_only")} aria-pressed={ctx.installments_only}>قسطی</button>
         <button className={"chip sm" + (ctx.open_only ? " on" : "")} onClick={() => flip("open_only")} aria-pressed={ctx.open_only}>فقط بازها</button>
         <button className={"chip sm" + (original ? " on" : "")} onClick={() => setCtx({ ...ctx, originality: original ? "any" : "original_only" })} aria-pressed={original}>فقط اصل</button>
         <button className={"chip sm" + (more ? " on" : "")} onClick={onFilters}><Icon name="filter" size={14} /> {more ? `${fa(more)} شرط دیگه` : "شرط‌های دیگه"}</button>
-      </div>
+      </ScrollRow>
       {range && (
         <div className="wz-cond-pop fadein">
           <div className="chips">

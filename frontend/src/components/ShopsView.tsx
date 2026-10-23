@@ -5,6 +5,7 @@ import { Icon } from "../icons";
 import type { Bargain, Ctx, Freshness, OpenState, ProductCard as PC, ShopBrief, ShopOffer, ShopsResult } from "../types";
 import { AiNote, AuthBadge, BargainCard, OpenText, TravelInline } from "./bits";
 import { Img, availability } from "./Products";
+import { ScrollRow } from "./ScrollRow";
 
 const MapView = lazy(() => import("./MapView").then((m) => ({ default: m.MapView })));
 
@@ -130,11 +131,11 @@ export function ShopsView({ pid, ctx, setCtx, picks, agentMsg, focus, onOpenShop
       {bargain && <BargainCard b={bargain} onOpen={() => reveal(bargain.sid)} />}
 
       <div className="toolbar">
-        <div className="chips nowrap" role="tablist" aria-label="مرتب‌سازی">
+        <ScrollRow className="chips nowrap" role="tablist" aria-label="مرتب‌سازی">
           {SORTS.map(([k, l]) => (
             <button key={k} role="tab" aria-selected={sort === k} className={"chip" + (sort === k ? " dark" : "")} onClick={() => setSort(k)}>{l}</button>
           ))}
-        </div>
+        </ScrollRow>
         <button className="mapbtn iconchip" onClick={() => setView(view === "map" ? "list" : "map")} aria-pressed={view === "map"}>
           <Icon name={view === "map" ? "list" : "map"} size={18} /> {view === "map" ? "فهرست" : "نقشه"}
         </button>

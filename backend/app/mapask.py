@@ -40,6 +40,15 @@ def _rules(text: str) -> dict:
     if m and (m.group(2) or float(m.group(1)) > 1000) and "دقیقه" not in t[m.end():m.end() + 8]:
         v = float(m.group(1))
         f["max_price"] = int(v * 1_000_000 if m.group(2) in ("میلیون", "ملیون") or v < 1000 else v * 1000 if m.group(2) == "هزار" else v)
+    m = re.search(r"(?:بین|از)\s*(\d+(?:\.\d+)?)\s*(?:میلیون|ملیون)?\s*(?:تا|و)\s*(\d+(?:\.\d+)?)\s*(میلیون|ملیون)", t)
+    if m:
+        a, b = sorted((float(m.group(1)), float(m.group(2))))
+        f["min_price"], f["max_price"] = int(a * 1_000_000), int(b * 1_000_000)
+    else:
+        m = re.search(r"(?:بالای|بیشتر از|بالاتر از|حداقل)\s*(\d+(?:\.\d+)?)\s*(میلیون|ملیون)", t) or \
+            re.search(r"از\s*(\d+(?:\.\d+)?)\s*(میلیون|ملیون)\s*(?:به\s*)?(?:بالا|بیشتر)", t)
+        if m:
+            f["min_price"] = int(float(m.group(1)) * 1_000_000)
     m = re.search(r"(\d+)\s*دقیقه", t)
     if m:
         f["max_minutes"] = int(m.group(1))
@@ -49,7 +58,7 @@ def _rules(text: str) -> dict:
         f["sort"] = "minutes"
     elif re.search(r"تازه|به\s*روز|آپدیت", t):
         f["sort"] = "fresh"
-    m = re.search(r"(\d+)\s*تا", t)
+    m = re.search(r"(?<![\d.])(\d+)\s*تا(?!\s*\d)", t)  # «سه تا»، not the «۳ تا ۵» of a price range
     if m:
         f["limit"] = int(m.group(1))
     else:
@@ -144,8 +153,13 @@ def say(f: dict, hits: list[dict], total: int) -> str:
         words.append("اصل")
     if f.get("in_mall"):
         words.append("داخل پاساژ")
-    if f.get("max_price"):
+    if f.get("min_price") and f.get("max_price"):
+        lo = _short(f["min_price"])
+        words.append(f"بین {lo.removesuffix(' میلیون') if f['max_price'] >= 1_000_000 else lo} تا {_short(f['max_price'])}")
+    elif f.get("max_price"):
         words.append(f"زیر {_short(f['max_price'])}")
+    elif f.get("min_price"):
+        words.append(f"بالای {_short(f['min_price'])}")
     if f.get("max_minutes"):
         words.append(f"تا {fa_digits(f['max_minutes'])} دقیقه")
     what = "، ".join(words)

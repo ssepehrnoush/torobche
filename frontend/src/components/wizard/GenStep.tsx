@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { fa, short, toman } from "../../fmt";
 import { Icon } from "../../icons";
 import type { GenAnswer, GenScreen } from "../../types";
+import { budgetText } from "../ContextBar";
 import { Img } from "../Products";
 import { Sheet } from "../Sheet";
 import { Choice, GrowText, LogoSpin, StepHead, WizFoot } from "./Shell";
@@ -93,24 +94,36 @@ function GenBudget({ s, busy, onBack, onAnswer, onIntent }: {
   s: GenScreen; busy: boolean; onBack: () => void; onAnswer: (a: GenAnswer) => void; onIntent: (a: GenAnswer) => void;
 }) {
   const b = s.budget!;
-  const start = Math.min(b.max, Math.max(b.min, Math.round(b.median / b.step) * b.step));
-  const [v, setV] = useState(start);
-  useEffect(() => { // build the next screen for the value the slider rests on
-    const t = window.setTimeout(() => onIntent({ q: s.title, a: `تا ${toman(v)}`, budget: v }), 600);
+  // both ends of the real prices, the whole range to begin with; an end left at its edge is no limit on that side
+  const [lo, setLo] = useState(b.min);
+  const [hi, setHi] = useState(b.max);
+  const floor = lo > b.min ? lo : 0, top = hi < b.max ? hi : 0;
+  const said = budgetText({ budget_min: floor || null, budget_max: top || null });
+  const answer: GenAnswer = { q: s.title, a: said ? `${said} تومان` : "همهٔ قیمت‌ها", budget: top, budget_min: floor };
+  const pct = (v: number) => ((v - b.min) / (b.max - b.min)) * 100;
+  useEffect(() => { // build the next screen for the range the slider rests on
+    const t = window.setTimeout(() => onIntent(answer), 600);
     return () => window.clearTimeout(t);
-  }, [v]); // eslint-disable-line
+  }, [lo, hi]); // eslint-disable-line
   return (
     <>
       <GenBadge s={s} />
-      <StepHead title={s.title} sub="بازه از قیمت‌های واقعی همین کالا توی ترب ساخته شده." />
+      <StepHead title={s.title} sub="دو سرِ نوار رو بکش. بازه از قیمت‌های واقعی همین کالا توی ترب ساخته شده." />
       <div className="gen-budget fadein">
-        <b className="gen-budget-v">تا {toman(v)}</b>
-        <input type="range" min={b.min} max={b.max} step={b.step} value={v} onChange={(e) => setV(Number(e.target.value))}
-          aria-label="سقف بودجه" dir="rtl" />
+        <b className="gen-budget-v">{said ? `${said} تومان` : "همهٔ قیمت‌ها"}</b>
+        <div className="rng" style={{ "--a": pct(lo), "--b": pct(hi) } as CSSProperties}>
+          <i className="rng-fill" />
+          <input type="range" min={b.min} max={b.max} step={b.step} value={lo} dir="rtl" aria-label="کمترین قیمت" aria-valuetext={toman(lo)}
+            style={{ zIndex: pct(lo) > 90 ? 3 : 2 }} onChange={(e) => setLo(Math.min(Number(e.target.value), hi - b.step))} />
+          <input type="range" min={b.min} max={b.max} step={b.step} value={hi} dir="rtl" aria-label="بیشترین قیمت" aria-valuetext={toman(hi)}
+            onChange={(e) => setHi(Math.max(Number(e.target.value), lo + b.step))} />
+        </div>
         <div className="gen-budget-ends"><span>{short(b.min)}</span><span className="meta">میانهٔ قیمت‌ها {short(b.median)}</span><span>{short(b.max)}</span></div>
       </div>
-      <button className="textbtn muted center" disabled={busy} onClick={() => onAnswer({ q: s.title, a: "بودجه مهم نیست", budget: 0 })}>بودجه مهم نیست</button>
-      <WizFoot onBack={onBack} next={{ label: <>ادامه <Icon name="left" size={18} /></>, onClick: () => onAnswer({ q: s.title, a: `تا ${toman(v)}`, budget: v }), disabled: busy }} />
+      {said
+        ? <button className="textbtn muted center" disabled={busy} onClick={() => { setLo(b.min); setHi(b.max); }}>برگرد به همهٔ قیمت‌ها</button>
+        : <button className="textbtn muted center" disabled={busy} onClick={() => onAnswer({ q: s.title, a: "بودجه مهم نیست", budget: 0 })}>بودجه مهم نیست</button>}
+      <WizFoot onBack={onBack} next={{ label: <>ادامه <Icon name="left" size={18} /></>, onClick: () => onAnswer(answer), disabled: busy }} />
     </>
   );
 }

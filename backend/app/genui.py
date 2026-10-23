@@ -43,7 +43,7 @@ TOOL = {"type": "function", "function": {
 
 SYSTEM = """تو طراحِ صفحه‌های یک دستیارِ خریدِ حضوری روی دادهٔ ترب هستی. هر بار فقط «صفحهٔ بعد» را با ابزارِ render_screen می‌سازی؛ هر صفحه دقیقاً یک بلوک دارد:
 - choice: یک سؤالِ کوتاه با ۲ تا ۶ گزینه که از دادهٔ واقعی آمده (برندها، دسته‌ها، نوعِ کاربری). برای فهمیدنِ چیزی که در نیاز مبهم است.
-- budget: اسلایدرِ بودجه که بازه‌اش را سیستم از قیمت‌های واقعیِ همین کالا می‌سازد. فقط اگر بودجه نامشخص است و قیمت‌ها پخش‌اند (صدکِ ۹۰ دستِ‌کم سه برابرِ صدکِ ۱۰).
+- budget: اسلایدرِ دوسرِ بودجه (از چه قیمتی تا چه قیمتی) که بازه‌اش را سیستم از قیمت‌های واقعیِ همین کالا می‌سازد؛ عنوانش بازه را بپرسد، نه فقط سقف. فقط اگر بودجه نامشخص است و قیمت‌ها پخش‌اند (صدکِ ۹۰ دستِ‌کم سه برابرِ صدکِ ۱۰).
 - place: نقشه برای انتخابِ جای خرید. اگر جای خرید هنوز نامشخص است، پیش از products و compare حتماً همین را بساز.
 - travel: پیاده یا ماشین یا مترو و چند دقیقه راه. فقط بعد از place و اگر هنوز نامشخص است.
 - products: ۲ تا ۴ کالا از نتایجِ جستجو (pids). وقتی نیاز به اندازهٔ کافی روشن است.
@@ -64,8 +64,8 @@ def _tool(ctx: Ctx, known: dict) -> dict:
 
 def _known(ctx: Ctx, known: dict) -> str:
     budget = "مهم نیست" if known.get("budget") else "نامشخص"
-    if ctx.budget_max:
-        budget = f"تا {ctx.budget_max:,} تومان"
+    if ctx.budget_max or ctx.budget_min:
+        budget = (f"از {ctx.budget_min:,} " if ctx.budget_min else "") + (f"تا {ctx.budget_max:,}" if ctx.budget_max else "به بالا") + " تومان"
     return "\n".join([
         f"- جای خرید: {ctx.place if known.get('place') else 'هنوز نامشخص'}",
         f"- رفت‌وآمد: {range_label(ctx) if known.get('travel') else 'هنوز نامشخص'}",
@@ -75,7 +75,7 @@ def _known(ctx: Ctx, known: dict) -> str:
 
 
 def _search(q: str, ctx: Ctx, brand: str | None) -> dict:
-    res = catalog.search_products(q, ctx, brand=brand or None, max_price=ctx.budget_max, limit=8)
+    res = catalog.search_products(q, ctx, brand=brand or None, max_price=ctx.budget_max, min_price=ctx.budget_min or None, limit=8)
     for it in res["items"]:  # the model reads it too (fmt_search), so it can prefer the originals
         it["copy_hint"] = authenticity.product_hint(it["title"], it["category"], it["brand"], it.get("price_median") or it.get("price_min"))
     return res
@@ -144,7 +144,7 @@ def rule_screen(res: dict, ctx: Ctx, known: dict, n: int) -> dict:
         return {"block": "travel", "title": "با چی می‌خوای بری؟", "why": "تا فقط مغازه‌هایی رو نشون بدم که زود بهشون می‌رسی."}
     pts = (res.get("facets") or {}).get("price_points") or []
     if not known.get("budget") and len(pts) == 5 and pts[0] and pts[-1] >= 3 * pts[0] and n < MAX_SCREENS:
-        return {"block": "budget", "title": "تا چقدر می‌خوای خرج کنی؟", "why": "قیمت‌های این کالا خیلی پخشه."}
+        return {"block": "budget", "title": "بودجه‌ت حدوداً چقدره؟", "why": "قیمت‌های این کالا خیلی پخشه."}
     pids = [it["pid"] for it in res["items"][:4]]
     if pids:
         return {"block": "products", "title": "کدوم رو می‌خوای؟", "why": "این‌ها به نیازت نزدیک‌ترن.", "pids": pids}
@@ -190,9 +190,11 @@ async def next_screen(need: str, answers: list[dict], ctx: Ctx, known: dict, sea
                 ctx = ctx.model_copy(update={"lat": p["lat"], "lon": p["lon"], "place": p["label"]})
                 known["place"] = True
                 break
-    for a in answers:  # a budget slider answer carries its number, so it never depends on parsing the text
-        if isinstance(a.get("budget"), int) and a["budget"] > 0:
-            ctx = ctx.model_copy(update={"budget_max": a["budget"], "budget_min": 0})
+    for a in answers:  # a budget slider answer carries its numbers (top, floor; 0 is no limit), never parsed from text
+        top = a.get("budget") if isinstance(a.get("budget"), int) and a["budget"] > 0 else 0
+        floor = a.get("budget_min") if isinstance(a.get("budget_min"), int) and a["budget_min"] > 0 else 0
+        if top or floor:
+            ctx = ctx.model_copy(update={"budget_max": top or None, "budget_min": floor})
     known["budget"] = bool(ctx.budget_max or any(isinstance(a.get("budget"), int) for a in answers))
     brand = (search or {}).get("brand")
     if (search or {}).get("q"):
