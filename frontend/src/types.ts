@@ -188,7 +188,8 @@ export type FeedItem =
 
 export type Reply = {
   sid: number;
-  outcome: "confirmed" | "price_changed" | "out_of_stock" | "no_answer" | "closed";
+  outcome: "confirmed" | "price_changed" | "out_of_stock" | "no_answer" | "closed" | "replied";
+  own?: boolean; // the shopkeeper's own words (a WhatsApp reply), not a tap on the answer page
   delay_s: number;
   confirmed_price: number | null;
   price_delta?: number;

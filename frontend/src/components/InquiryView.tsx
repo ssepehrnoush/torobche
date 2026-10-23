@@ -13,6 +13,7 @@ const OUTCOME: Record<Reply["outcome"], { label: string; tone: string }> = {
   out_of_stock: { label: "ناموجود", tone: "red" },
   no_answer: { label: "بی‌پاسخ", tone: "gray" },
   closed: { label: "بسته بود", tone: "gray" },
+  replied: { label: "جواب داد", tone: "blue" },
 };
 const SCENARIOS: [string, string][] = [["", "خودکار"], ["confirmed", "موجود"], ["price_changed", "تغییر قیمت"], ["out_of_stock", "ناموجود"], ["no_answer", "بی‌پاسخ"]];
 const AUTH_TONE: Record<string, string> = { confirmed_copy: "red", unclear: "amber", claimed_original: "green" };

@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import random
+import re
 import secrets
 import string
 import time
@@ -29,6 +30,8 @@ from .timegeo import fa_digits, fa_text, now_tehran
 CHANNELS = {"whatsapp": "واتساپ", "sms": "پیامک", "bale": "پیام بله", "call": "تماس خودکار"}
 CHANNEL_WAIT_S = 2.6  # simulated: how long one channel is given before the next is tried
 LIVE_WAIT_S = 180.0  # demo «زنده»: how long a real tap on the shop's page is awaited, over all channels
+PHONE_WAIT_S = 360.0  # a really texted shop (a tester's own phone): after its last way, this long for an answer
+INBOX_EVERY_S = 3.0  # how often its WhatsApp replies are looked for
 REAL_TEXT_WAIT_S = 20.0  # a real message's turn before the next channel is tried
 
 
@@ -160,12 +163,61 @@ def submit_reply(tok: str, outcome: str, price: int | None, hold_h: int | None =
     return {"ok": True, "answer": p["answer"]}
 
 
+_FA = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩٫٬", "01234567890123456789.,")  # and the Persian decimal and thousands marks
+_NO = re.compile(r"ندار|نمی\s*دار|نیست|تموم|تمام شد|ناموجود|^\s*نه\b|نخیر")
+_YES = re.compile(r"موجود|داریم|هست|بله|آره|اره|بلی|حتما|اوکی|\bok\b|\byes\b", re.I)
+_PRICE = re.compile(r"(\d[\d,٬.]*)\s*(میلیون|ملیون|م\b|هزار|تومن|تومان)?")
+
+
+def read_answer(text: str, price: int | None) -> dict:
+    """A shopkeeper's own words (a WhatsApp reply) as an answer: in stock or not, and a price if one is written."""
+    t = text.translate(_FA)
+    new = None
+    for num, unit in _PRICE.findall(t):
+        try:
+            v = float(num.replace(",", "").replace("٬", ""))
+        except ValueError:
+            continue
+        v = v * 1_000_000 if unit in ("میلیون", "ملیون", "م") or (not unit and v < 1000) else v * 1000 if unit == "هزار" else v
+        if v >= 10_000:
+            new = int(v) if new is None else max(new, int(v))
+    if _NO.search(t) and not re.search(r"موجوده(?!\s*نیست)", t):
+        outcome = "out_of_stock"
+    elif _YES.search(t) or new:
+        outcome = "price_changed" if new and price and abs(new - price) > price * 0.01 else "confirmed"
+    else:
+        outcome = "replied"
+    return {"outcome": outcome, "price": new if outcome == "price_changed" else price}
+
+
+async def _watch_whatsapp(page: dict, phone: str, since_ms: int, price: int | None) -> None:
+    """Until the shop answers: its WhatsApp replies become its real answer, like a tap on its page."""
+    while not page["event"].is_set():
+        for m in await whatsapp.inbox(phone, since_ms):
+            text = (m.get("text") or "").strip()
+            if text:
+                page["answer"] = {**read_answer(text, price), "real": True, "via": "whatsapp", "said": text[:300],
+                                  "at": fa_digits(now_tehran().strftime("%H:%M")), **NO_HOLD}
+                page["event"].set()
+                return
+        await asyncio.sleep(INBOX_EVERY_S)
+
+
 def _real_reply(item: dict, ans: dict, via: str) -> dict:
-    """The customer-side reply built from a real tap on the shop's page."""
+    """The customer-side reply built from a real answer: a tap on the shop's page, or its own WhatsApp words."""
     price = item.get("price")
     res = {"sid": item["sid"], "outcome": ans["outcome"], "delay_s": 0, "confirmed_price": None, "in_stock": None,
            "hours_today": None, "installments": None, "authenticity_check": None,
-           "via": via, "real": True, **{k: ans.get(k) for k in HOLD_KEYS}}
+           "via": ans.get("via") or via, "real": True, **{k: ans.get(k) for k in HOLD_KEYS}}
+    if ans.get("said"):  # the shopkeeper's own words, shown as written
+        res["text"] = f"مغازه‌دار در واتساپ نوشت: «{ans['said']}»"
+        res["own"] = True  # its own words, not a tap
+        if ans["outcome"] == "out_of_stock":
+            res["in_stock"] = False
+        elif ans["outcome"] in ("confirmed", "price_changed"):
+            new = ans.get("price") or price
+            res.update(in_stock=True, confirmed_price=new, price_delta=(new - price) if new and price else 0)
+        return res
     if ans["outcome"] == "out_of_stock":
         res["in_stock"] = False
         res["text"] = "مغازه‌دار از صفحهٔ جواب زد: «نداریم»."
@@ -360,6 +412,18 @@ async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bo
     otherwise the simulated answer arrives on one of the channels (usually the first), or none answers.
     With `phone` (a tester or a demo phone) WhatsApp, the text and the call really go to that phone."""
     page = _pages[tok]
+    watch = None
+    if live and phone:  # a real phone: its WhatsApp reply counts as an answer too
+        watch = asyncio.create_task(_watch_whatsapp(page, phone, int(time.time() * 1000) - 5000, item.get("price")))
+    try:
+        await _reach_ways(item, channels, plan, tok, live, queue, phone, page)
+    finally:
+        if watch:
+            watch.cancel()
+
+
+async def _reach_ways(item: dict, channels: list[str], plan: dict, tok: str, live: bool, queue: asyncio.Queue,
+                      phone: str | None, page: dict) -> None:
     answered = plan["outcome"] not in ("no_answer", "closed")
     answer_on = 0
     if plan.get("answer_last"):
@@ -385,7 +449,7 @@ async def _reach(item: dict, channels: list[str], plan: dict, tok: str, live: bo
         if live and phone and note and i < len(channels) - 1:
             wait = 0.05  # this channel never left; the next one goes at once
         elif live:
-            wait = REAL_TEXT_WAIT_S if phone and i < len(channels) - 1 else LIVE_WAIT_S / len(channels)
+            wait = (REAL_TEXT_WAIT_S if i < len(channels) - 1 else PHONE_WAIT_S) if phone else LIVE_WAIT_S / len(channels)
         elif plan["outcome"] == "closed":
             wait = 1.0
         else:

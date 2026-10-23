@@ -9,7 +9,7 @@ PLAN = {"sid": 1, "outcome": "confirmed", "delay_s": 0.01, "confirmed_price": 1_
         "hold_until": None, "text": None}
 
 
-def reach(monkeypatch, on_text=None, text_note=None, channels=("sms", "call"), wa_note=None):
+def reach(monkeypatch, on_text=None, text_note=None, channels=("sms", "call"), wa_note=None, wa_reply=None):
     """Run one «زنده» shop on the demo phone with fake WhatsApp and Kavenegar calls; returns (sent, events)."""
     sent: list[str] = []
 
@@ -33,6 +33,13 @@ def reach(monkeypatch, on_text=None, text_note=None, channels=("sms", "call"), w
     monkeypatch.setattr(kavenegar, "call", fake_call)
     monkeypatch.setattr(contact, "REAL_TEXT_WAIT_S", 0.05)
     monkeypatch.setattr(contact, "LIVE_WAIT_S", 0.1)
+    monkeypatch.setattr(contact, "PHONE_WAIT_S", 0.3)
+    monkeypatch.setattr(contact, "INBOX_EVERY_S", 0.02)
+
+    async def fake_inbox(phone, since_ms):
+        return [{"text": wa_reply, "ts": since_ms + 1}] if wa_reply and "whatsapp" in sent else []
+
+    monkeypatch.setattr(whatsapp, "inbox", fake_inbox)
 
     async def run():
         tok = contact._new_page(7, ITEM, PRODUCT)
@@ -160,3 +167,19 @@ def test_shops_pick_one_to_three_of_whatsapp_text_and_call():
     assert all(set(p) <= {"whatsapp", "sms", "call"} and 1 <= len(p) <= 3 for p in seen)
     assert {len(p) for p in seen} == {1, 2, 3}
     assert contact.contact_prefs("shop-7") == contact.contact_prefs("shop-7")  # fixed per shop
+
+
+def test_the_shopkeepers_own_whatsapp_reply_is_the_real_answer(monkeypatch):
+    sent, events = reach(monkeypatch, channels=("whatsapp", "sms", "call"), wa_reply="سلام، موجوده. قیمتش ۱٫۲ میلیون شده")
+    reply = next(e for e in events if e["type"] == "reply")
+    assert reply["real"] and reply["own"] and reply["via"] == "whatsapp"
+    assert reply["outcome"] == "price_changed" and reply["confirmed_price"] == 1_200_000 and reply["in_stock"]
+    assert "قیمتش ۱٫۲ میلیون شده" in reply["text"]
+    assert "call" not in sent  # the answer came before the call was due
+
+
+def test_reading_a_shopkeepers_words():
+    assert contact.read_answer("بله موجوده", 900)["outcome"] == "confirmed"
+    assert contact.read_answer("موجود نیست", 900)["outcome"] == "out_of_stock"
+    assert contact.read_answer("نداریم", 900)["outcome"] == "out_of_stock"
+    assert contact.read_answer("سلام", 900)["outcome"] == "replied"

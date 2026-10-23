@@ -52,3 +52,18 @@ async def send(phone: str, text: str) -> str | None:
         return None
     log.warning("sendText: %s", r.status_code)
     return "واتساپ پیام را نفرستاد"
+
+
+async def inbox(phone: str, since_ms: int) -> list[dict]:
+    """What a 09… number wrote back on WhatsApp since a moment (ms), oldest first; [] when the gateway cannot tell."""
+    if not configured():
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=8, headers={"X-Api-Key": _key()}) as c:
+            r = await c.get(f"{_url()}/api/inbox", params={"phone": "98" + phone[1:], "since": since_ms})
+        if r.status_code != 200:
+            return []
+        return sorted(r.json().get("messages") or [], key=lambda m: m.get("ts", 0))
+    except Exception as e:
+        log.warning("inbox failed: %s", type(e).__name__)
+        return []

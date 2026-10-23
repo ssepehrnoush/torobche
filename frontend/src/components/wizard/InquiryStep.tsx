@@ -16,6 +16,7 @@ const OUTCOME: Record<Reply["outcome"], { label: string; tone: string }> = {
   out_of_stock: { label: "نداره", tone: "red" },
   no_answer: { label: "جواب نداد", tone: "gray" },
   closed: { label: "بسته بود", tone: "gray" },
+  replied: { label: "جواب داد", tone: "blue" },
 };
 const SCENARIOS: [string, string][] = [["", "خودکار"], ["live", "زنده"], ["confirmed", "موجود"], ["price_changed", "تغییر قیمت"], ["out_of_stock", "ناموجود"], ["no_answer", "بی‌پاسخ"], ["on_call", "با تماس"]];
 const VIA: Record<string, string> = { whatsapp: "واتساپ", sms: "پیامک", call: "تماس هوش مصنوعی" };
@@ -191,7 +192,7 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
                     <div className={"wz-in" + (r.in_stock === false || !r.text ? " off" : "")}>
                       <span>{r.text ?? r.note}</span>
                       <span className="wz-in-meta">
-                        {r.via ? `از راه ${VIA[r.via] ?? r.via}` : ""}{r.real ? " · با یک لمس روی صفحهٔ جواب" : ""}
+                        {r.via ? `از راه ${VIA[r.via] ?? r.via}` : ""}{r.own ? " · پیام واقعی خود مغازه‌دار" : r.real ? " · با یک لمس روی صفحهٔ جواب" : ""}
                       </span>
                     </div>
                   )}
@@ -200,9 +201,13 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
                       <span className="grow">کد رزرو <b className="wz-code">{fa(r.hold_code)}</b> · تا {r.hold_until} نگه می‌دارن</span>
                     </div>
                   )}
-                  {s.reply_token && (
-                    <button className="textbtn wz-shoplink" onClick={() => setLink(s)}>صفحهٔ مغازه‌دار</button>
-                  )}
+                  <div className="row wrap" style={{ gap: 14 }}>
+                    {s.reply_token && <button className="textbtn wz-shoplink" onClick={() => setLink(s)}>صفحهٔ مغازه‌دار</button>}
+                    {/* no answer is no dead end: the shop listed it with a price, the asking is only to make sure */}
+                    {(!r || r.outcome === "no_answer" || r.outcome === "closed") && s.phone && (
+                      <a className="textbtn" href={`tel:${s.phone}`}><Icon name="phone" size={15} /> تماس با فروشنده</a>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -257,7 +262,9 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
         <WizFoot onBack={onBack} next={{ label: <><Icon name="send" size={18} className="flip" /> بفرست</>, onClick: start,
           disabled: !preview || running || (play && !isMobile(tester)) }} />
       ) : !done ? (
-        <WizFoot next={{ label: "صبر کن…", disabled: true }} />
+        <WizFoot next={{ label: "منتظر جواب…", disabled: true }}>
+          <button className="textbtn center" onClick={() => onGo(st.sids, confirmed)}>بدون جواب برو، با قیمت ثبت‌شده</button>
+        </WizFoot>
       ) : nOk ? (
         <WizFoot onBack={onBack} next={{
           label: <><Icon name="route" size={18} /> برنامهٔ رفتن</>,
@@ -266,7 +273,9 @@ export function InquiryStep({ st, setSt, ctx, demo, toast, onBack, onGo, onResta
       ) : (
         <WizFoot onBack={onBack} next={alts.length
           ? { label: <><Icon name="chat" size={18} /> از {fa(alts.length)} فروشگاه دیگه بپرس</>, onClick: () => onRestart(alts.map((a) => a.sid)) }
-          : { label: <><Icon name="refresh" size={18} /> دوباره بپرس</>, onClick: () => onRestart(st.sids) }} />
+          : { label: <><Icon name="refresh" size={18} /> دوباره بپرس</>, onClick: () => onRestart(st.sids) }}>
+          <button className="textbtn center" onClick={() => onGo(st.sids, confirmed)}>بدون جواب برو، با قیمت ثبت‌شده</button>
+        </WizFoot>
       )}
       {link && <ShopLinkSheet shop={link} onClose={() => setLink(null)} toast={toast} />}
       {reach && shops.length > 0 && (() => {

@@ -21,6 +21,14 @@ let status = "IDLE"; // IDLE (not linked, waiting for a pairing request), STARTI
 let me = null;
 let gen = 0; // each connection's number: events of a retired socket are ignored
 let qrReady = null; // settles once the current socket can take a pairing request
+// the shop's own answers: the last texts people sent this account, for the app to show as a real reply.
+// Only the sender's number, the text and the time are kept, in memory, and never more than 200.
+const inbox = [];
+const jidOf = new Map(); // phone -> the chat id WhatsApp gave for it (may be a privacy id, not the number)
+const digits = (jid) => String(jid || "").split("@")[0].split(":")[0].replace(/\D/g, "");
+const textOf = (m) => m?.conversation || m?.extendedTextMessage?.text || m?.imageMessage?.caption ||
+  m?.buttonsResponseMessage?.selectedDisplayText || m?.ephemeralMessage?.message?.conversation ||
+  m?.ephemeralMessage?.message?.extendedTextMessage?.text || "";
 
 const linked = () => fs.existsSync(new URL("./auth/creds.json", import.meta.url)) &&
   JSON.parse(fs.readFileSync(new URL("./auth/creds.json", import.meta.url), "utf8")).registered === true;
@@ -34,6 +42,18 @@ async function connect() {
   let ready;
   qrReady = new Promise((r) => (ready = r));
   s.ev.on("creds.update", saveCreds);
+  s.ev.on("messages.upsert", ({ messages }) => {
+    if (my !== gen) return;
+    for (const msg of messages || []) {
+      if (msg.key?.fromMe) continue;
+      const text = textOf(msg.message);
+      if (!text) continue;
+      const k = msg.key || {};
+      const pn = [k.remoteJid, k.remoteJidAlt, k.senderPn, k.participantPn].find((j) => String(j || "").endsWith("@s.whatsapp.net"));
+      inbox.push({ jid: k.remoteJid || "", from: digits(pn), text: String(text).slice(0, 600), ts: Number(msg.messageTimestamp) * 1000 || Date.now() });
+      if (inbox.length > 200) inbox.shift();
+    }
+  });
   s.ev.on("connection.update", ({ connection, lastDisconnect, qr }) => {
     if (my !== gen) return;
     if (qr) {
@@ -122,6 +142,7 @@ http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/contacts/check-exists") {
       const phone = String(url.searchParams.get("phone") || "").replace(/\D/g, "");
       const [hit] = phone ? await sock.onWhatsApp(phone) : [];
+      if (hit?.jid) jidOf.set(phone, hit.jid);
       return send(res, 200, { numberExists: !!hit?.exists, chatId: hit?.jid ?? null });
     }
     if (req.method === "POST" && url.pathname === "/api/sendText") {
@@ -129,6 +150,15 @@ http.createServer(async (req, res) => {
       if (!chatId || !text) return send(res, 400, { message: "chatId and text needed" });
       const sent = await sock.sendMessage(chatId, { text: String(text).slice(0, 2000) });
       return send(res, 201, { id: sent?.key?.id ?? null });
+    }
+    if (req.method === "GET" && url.pathname === "/api/inbox") {
+      // what one number wrote since a moment (ms): matched by its number, or by the chat id WhatsApp gave for it
+      const phone = String(url.searchParams.get("phone") || "").replace(/\D/g, "");
+      const since = Number(url.searchParams.get("since") || 0);
+      if (!phone) return send(res, 400, { message: "phone needed" });
+      const jid = jidOf.get(phone);
+      const got = inbox.filter((m) => m.ts >= since && (m.from === phone || (jid && m.jid === jid)));
+      return send(res, 200, { messages: got.map(({ text, ts }) => ({ text, ts })) });
     }
     return send(res, 404, { message: "Not Found" });
   } catch (e) {
